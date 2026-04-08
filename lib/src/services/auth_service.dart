@@ -7,6 +7,12 @@ import 'package:http/http.dart' as http;
 
 import '../models/auth_user.dart';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+final baseUrl = dotenv.env['API_URL'];
+
+
+
 class AuthService {
   AuthService({
     FlutterSecureStorage? storage,
@@ -188,3 +194,4 @@ class AuthException implements Exception {
   @override
   String toString() => message;
 }
+
