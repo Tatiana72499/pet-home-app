@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-
-import '../models/auth_user.dart';
-import '../services/auth_service.dart';
-import 'home_page.dart';
+import 'package:pethome_app/src/features/auth/data/auth_service.dart';
+import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
+import 'package:pethome_app/src/features/home/presentation/pages/home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -21,9 +20,19 @@ class _LoginPageState extends State<LoginPage> {
   final _correoController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  List<PublicVeterinaria> _veterinarias = <PublicVeterinaria>[];
+  String? _selectedSlugVeterinaria;
+
   bool _isLoading = false;
+  bool _isLoadingVets = true;
   bool _showPassword = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVeterinarias();
+  }
 
   @override
   void dispose() {
@@ -32,7 +41,32 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // 🔥 VALIDACIONES PRO
+  Future<void> _loadVeterinarias() async {
+    setState(() {
+      _isLoadingVets = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final vets = await widget.authService.getPublicVeterinarias();
+      if (!mounted) return;
+      setState(() {
+        _veterinarias = vets;
+        _selectedSlugVeterinaria = vets.isEmpty ? null : vets.first.slug;
+      });
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'No se pudo cargar veterinarias.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingVets = false);
+      }
+    }
+  }
+
   String? _validateEmail(String? value) {
     final email = value?.trim() ?? '';
 
@@ -40,12 +74,9 @@ class _LoginPageState extends State<LoginPage> {
       return 'El correo es obligatorio';
     }
 
-    final emailRegex = RegExp(
-      r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-    );
-
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(email)) {
-      return 'Ingresa un correo válido';
+      return 'Ingresa un correo valido';
     }
 
     return null;
@@ -55,11 +86,11 @@ class _LoginPageState extends State<LoginPage> {
     final password = value ?? '';
 
     if (password.isEmpty) {
-      return 'La contraseña es obligatoria';
+      return 'La contrasena es obligatoria';
     }
 
     if (password.length < 6) {
-      return 'Mínimo 6 caracteres';
+      return 'Minimo 6 caracteres';
     }
 
     if (password.contains(' ')) {
@@ -73,11 +104,9 @@ class _LoginPageState extends State<LoginPage> {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
 
-    // 🔥 validación extra
-    if (_correoController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
+    if (_selectedSlugVeterinaria == null || _selectedSlugVeterinaria!.isEmpty) {
       setState(() {
-        _errorMessage = 'Completa todos los campos';
+        _errorMessage = 'Selecciona una veterinaria para continuar.';
       });
       return;
     }
@@ -90,9 +119,10 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final AuthUser user = await widget.authService.login(
+      final AuthSession session = await widget.authService.login(
         correo: _correoController.text.trim(),
         password: _passwordController.text,
+        slugVeterinaria: _selectedSlugVeterinaria!,
       );
 
       if (!mounted) return;
@@ -101,7 +131,7 @@ class _LoginPageState extends State<LoginPage> {
         MaterialPageRoute(
           builder: (_) => HomePage(
             authService: widget.authService,
-            initialUser: user,
+            initialUser: session.user,
           ),
         ),
       );
@@ -111,7 +141,7 @@ class _LoginPageState extends State<LoginPage> {
       });
     } catch (_) {
       setState(() {
-        _errorMessage = 'No se pudo iniciar sesión. Revisa el servidor.';
+        _errorMessage = 'No se pudo iniciar sesion. Revisa el servidor.';
       });
     } finally {
       if (mounted) {
@@ -146,9 +176,16 @@ class _LoginPageState extends State<LoginPage> {
                     formKey: _formKey,
                     correoController: _correoController,
                     passwordController: _passwordController,
+                    veterinarias: _veterinarias,
+                    selectedSlugVeterinaria: _selectedSlugVeterinaria,
                     isLoading: _isLoading,
+                    isLoadingVets: _isLoadingVets,
                     showPassword: _showPassword,
                     errorMessage: _errorMessage,
+                    onRetryVets: _loadVeterinarias,
+                    onChangedVeterinaria: (value) {
+                      setState(() => _selectedSlugVeterinaria = value);
+                    },
                     onTogglePassword: () {
                       setState(() {
                         _showPassword = !_showPassword;
@@ -199,7 +236,7 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Cuidamos a los que más quieres',
+          'Cuidamos a los que mas quieres',
           style: TextStyle(
             color: Colors.white70,
           ),
@@ -214,22 +251,31 @@ class _LoginCard extends StatelessWidget {
     required this.formKey,
     required this.correoController,
     required this.passwordController,
+    required this.veterinarias,
+    required this.selectedSlugVeterinaria,
     required this.isLoading,
+    required this.isLoadingVets,
     required this.showPassword,
     required this.errorMessage,
+    required this.onRetryVets,
+    required this.onChangedVeterinaria,
     required this.onTogglePassword,
     required this.onSubmit,
     required this.validateEmail,
     required this.validatePassword,
-    
   });
 
   final GlobalKey<FormState> formKey;
   final TextEditingController correoController;
   final TextEditingController passwordController;
+  final List<PublicVeterinaria> veterinarias;
+  final String? selectedSlugVeterinaria;
   final bool isLoading;
+  final bool isLoadingVets;
   final bool showPassword;
   final String? errorMessage;
+  final VoidCallback onRetryVets;
+  final ValueChanged<String?> onChangedVeterinaria;
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
   final String? Function(String?) validateEmail;
@@ -246,7 +292,7 @@ class _LoginCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -267,12 +313,49 @@ class _LoginCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Inicia sesión para continuar',
+                'Inicia sesion para continuar',
                 style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 20),
-
-              const Text("Correo"),
+              const Text('Veterinaria'),
+              const SizedBox(height: 8),
+              if (isLoadingVets)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (veterinarias.isEmpty)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: onRetryVets,
+                    child: const Text('Reintentar carga de veterinarias'),
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: selectedSlugVeterinaria,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.local_hospital_outlined),
+                    filled: true,
+                    fillColor: Colors.grey[200],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  items: veterinarias
+                      .map(
+                        (item) => DropdownMenuItem<String>(
+                          value: item.slug,
+                          child: Text(item.nombre),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: onChangedVeterinaria,
+                ),
+              const SizedBox(height: 16),
+              const Text('Correo'),
               const SizedBox(height: 8),
               TextFormField(
                 controller: correoController,
@@ -288,10 +371,8 @@ class _LoginCard extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 16),
-
-              const Text("Contraseña"),
+              const Text('Contrasena'),
               const SizedBox(height: 8),
               TextFormField(
                 controller: passwordController,
@@ -307,44 +388,35 @@ class _LoginCard extends StatelessWidget {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      showPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                      showPassword ? Icons.visibility_off : Icons.visibility,
                     ),
                     onPressed: onTogglePassword,
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
               ElevatedButton(
                 onPressed: isLoading ? null : onSubmit,
                 child: isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Entrar"),
+                    : const Text('Entrar'),
               ),
-
               const SizedBox(height: 16),
-
               Row(
                 children: const [
                   Expanded(child: Divider()),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text("o"),
+                    child: Text('o'),
                   ),
                   Expanded(child: Divider()),
                 ],
               ),
-
               const SizedBox(height: 16),
-
               OutlinedButton(
                 onPressed: () {},
-                child: const Text("Crear cuenta nueva"),
+                child: const Text('Crear cuenta nueva'),
               ),
-
               if (errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Container(

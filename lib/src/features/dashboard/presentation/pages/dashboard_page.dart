@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
-
-import '../models/auth_user.dart';
-import '../services/client_service.dart';
+import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
+import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
+import 'package:pethome_app/src/features/pets/data/pets_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
     super.key,
     required this.user,
-    required this.clientService,
+    required this.petsService,
+    required this.appointmentsService,
   });
 
   final AuthUser user;
-  final ClientService clientService;
+  final PetsService petsService;
+  final AppointmentsService appointmentsService;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -19,15 +21,24 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   late Future<_DashboardSummary> _summaryFuture = _loadSummary();
+  bool _autoRetriedAfterError = false;
 
   Future<_DashboardSummary> _loadSummary() async {
-    final results = await Future.wait([
-      widget.clientService.getPets(),
-      widget.clientService.getAppointments(),
-    ]);
+    List<Pet> pets = <Pet>[];
+    List<Appointment> appointments = <Appointment>[];
 
-    final pets = results[0] as List<Pet>;
-    final appointments = results[1] as List<Appointment>;
+    try {
+      pets = await widget.petsService.getPets();
+    } catch (_) {
+      // No tumbar resumen completo por una sola fuente.
+    }
+
+    try {
+      appointments = await widget.appointmentsService.getAppointments();
+    } catch (_) {
+      // No tumbar resumen completo por una sola fuente.
+    }
+
     final upcoming = appointments
         .where((appointment) =>
             appointment.status == 'PENDIENTE' ||
@@ -53,12 +64,28 @@ class _DashboardPageState extends State<DashboardPage> {
         child: RefreshIndicator(
           onRefresh: () async {
             setState(() => _summaryFuture = _loadSummary());
-            await _summaryFuture;
+            try {
+              await _summaryFuture;
+            } catch (_) {
+              // El error se representa en la UI del FutureBuilder.
+            }
           },
           child: FutureBuilder<_DashboardSummary>(
             future: _summaryFuture,
             builder: (context, snapshot) {
               final summary = snapshot.data;
+
+              if (snapshot.hasError && !_autoRetriedAfterError) {
+                _autoRetriedAfterError = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  setState(() => _summaryFuture = _loadSummary());
+                });
+              }
+
+              if (snapshot.hasData) {
+                _autoRetriedAfterError = false;
+              }
 
               return ListView(
                 padding: const EdgeInsets.all(20),
@@ -87,7 +114,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   else if (snapshot.hasError)
                     _card(
                       'No se pudo cargar',
-                      'Desliza hacia abajo para intentar de nuevo',
+                      '${snapshot.error}\nDesliza hacia abajo para intentar de nuevo',
                       Icons.error_outline,
                     )
                   else ...[

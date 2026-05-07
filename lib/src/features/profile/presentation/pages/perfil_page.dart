@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
-
-import '../models/auth_user.dart';
-import '../services/client_service.dart';
+import 'package:pethome_app/src/core/network/api_client.dart';
+import 'package:pethome_app/src/features/auth/data/auth_service.dart';
+import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
+import 'package:pethome_app/src/features/profile/data/profile_service.dart';
 
 class PerfilPage extends StatefulWidget {
   const PerfilPage({
     super.key,
     required this.user,
+    required this.authService,
     required this.clientService,
     required this.onLogout,
     required this.isLoggingOut,
+    required this.permissions,
   });
 
   final AuthUser user;
-  final ClientService clientService;
+  final AuthService authService;
+  final ProfileService clientService;
   final VoidCallback onLogout;
   final bool isLoggingOut;
+  final PermissionsHelper permissions;
 
   @override
   State<PerfilPage> createState() => _PerfilPageState();
@@ -28,9 +33,24 @@ class _PerfilPageState extends State<PerfilPage> {
   final _addressController = TextEditingController();
 
   late Future<ClientProfile> _profileFuture = _loadProfile();
+  late PermissionsHelper _runtimePermissions = widget.permissions;
   bool _isEditing = false;
   bool _isSaving = false;
   String? _message;
+
+  bool get _canEditProfile =>
+      _runtimePermissions.canEdit('MOVIL_MI_PERFIL') ||
+      _runtimePermissions.canView('MOVIL_MI_PERFIL') ||
+      _runtimePermissions.canEdit('PERFIL');
+
+  bool get _canAttemptEdit => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPermissionsFromSession();
+    _debugPermissions(source: 'cache-initial');
+  }
 
   @override
   void dispose() {
@@ -46,6 +66,21 @@ class _PerfilPageState extends State<PerfilPage> {
     _phoneController.text = profile.phone ?? '';
     _addressController.text = profile.address ?? '';
     return profile;
+  }
+
+  Future<void> _refreshPermissionsFromSession() async {
+    try {
+      final session = await widget.authService.getMe();
+      if (!mounted) return;
+      setState(() {
+        _runtimePermissions = session.permissions;
+      });
+      _debugPermissions(source: 'fresh-/auth/me/');
+    } catch (_) {
+      if (mounted) {
+        _debugPermissions(source: 'cache-fallback');
+      }
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -71,6 +106,14 @@ class _PerfilPageState extends State<PerfilPage> {
         _message = 'Perfil actualizado correctamente.';
         _profileFuture = Future.value(profile);
       });
+    } on ClientException catch (error) {
+      setState(() => _message = error.toString());
+      assert(() {
+        debugPrint(
+          '[PerfilPage] updateProfile failed status=${error.statusCode} message=${error.message}',
+        );
+        return true;
+      }());
     } catch (error) {
       setState(() => _message = error.toString());
     } finally {
@@ -94,7 +137,21 @@ class _PerfilPageState extends State<PerfilPage> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            onPressed: () => setState(() => _isEditing = !_isEditing),
+            onPressed: () {
+              setState(() {
+                _message = null;
+                _isEditing = !_isEditing;
+              });
+              if (!_canEditProfile && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Permiso local no confirmado. Se validara al guardar.',
+                    ),
+                  ),
+                );
+              }
+            },
             icon: Icon(_isEditing ? Icons.close : Icons.edit),
           ),
         ],
@@ -155,6 +212,19 @@ class _PerfilPageState extends State<PerfilPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                if (!_isEditing)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => setState(() {
+                        _message = null;
+                        _isEditing = true;
+                      }),
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Editar perfil'),
+                    ),
+                  ),
+                if (!_isEditing) const SizedBox(height: 12),
                 _isEditing ? _buildEditForm() : _buildProfileInfo(profile),
                 if (_message != null) ...[
                   const SizedBox(height: 12),
@@ -230,7 +300,7 @@ class _PerfilPageState extends State<PerfilPage> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _isSaving ? null : _saveProfile,
+                onPressed: _isSaving || !_canAttemptEdit ? null : _saveProfile,
                 child: _isSaving
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text('Guardar cambios'),
@@ -262,5 +332,17 @@ class _PerfilPageState extends State<PerfilPage> {
         ],
       ),
     );
+  }
+
+  void _debugPermissions({required String source}) {
+    if (!mounted) return;
+    assert(() {
+      debugPrint(
+        '[PerfilPage][$source] '
+        'MOVIL_MI_PERFIL(view=${_runtimePermissions.canView('MOVIL_MI_PERFIL')}, edit=${_runtimePermissions.canEdit('MOVIL_MI_PERFIL')}), '
+        'CLI_CLIENTES(view=${_runtimePermissions.canView('CLI_CLIENTES')}, edit=${_runtimePermissions.canEdit('CLI_CLIENTES')})',
+      );
+      return true;
+    }());
   }
 }

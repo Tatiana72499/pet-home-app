@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'services/auth_service.dart';
-import 'views/home_page.dart';
-import 'views/login_page.dart';
+import 'package:pethome_app/src/features/auth/data/auth_service.dart';
+import 'package:pethome_app/src/features/auth/presentation/pages/login_page.dart';
+import 'package:pethome_app/src/features/home/presentation/pages/home_page.dart';
 
 class PetHomeApp extends StatelessWidget {
   const PetHomeApp({super.key});
@@ -23,6 +24,15 @@ class PetHomeApp extends StatelessWidget {
     return MaterialApp(
       title: 'PetHome',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es'),
+        Locale('en'),
+      ],
       theme: baseTheme.copyWith(
         scaffoldBackgroundColor: Colors.white,
 

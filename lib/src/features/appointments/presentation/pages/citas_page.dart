@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
-
-import '../services/client_service.dart';
+import 'package:pethome_app/src/core/network/api_client.dart';
+import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
+import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
+import 'package:pethome_app/src/features/pets/data/pets_service.dart';
 
 class CitasPage extends StatefulWidget {
-  const CitasPage({super.key, required this.clientService});
+  const CitasPage({
+    super.key,
+    required this.petsService,
+    required this.appointmentsService,
+    required this.permissions,
+  });
 
-  final ClientService clientService;
+  final PetsService petsService;
+  final AppointmentsService appointmentsService;
+  final PermissionsHelper permissions;
 
   @override
   State<CitasPage> createState() => _CitasPageState();
@@ -23,6 +32,7 @@ class _CitasPageState extends State<CitasPage> {
   List<ServiceItem> _services = [];
   List<ServicePrice> _prices = [];
   List<Appointment> _appointments = [];
+  List<AvailabilitySlot> _availability = [];
 
   int? _selectedPetId;
   int? _selectedServiceId;
@@ -30,7 +40,15 @@ class _CitasPageState extends State<CitasPage> {
   String _selectedModality = 'CLINICA';
   int? _editingAppointmentId;
   bool _isSaving = false;
+  bool _isLoadingAvailability = false;
   String? _message;
+
+  bool get _canCreateAppointment =>
+      widget.permissions.canCreate('CITAS') ||
+      widget.permissions.canExecute('CITAS');
+
+  bool get _canEditAppointment => widget.permissions.canEdit('CITAS');
+  bool get _canDeleteAppointment => widget.permissions.canDelete('CITAS');
 
   @override
   void dispose() {
@@ -43,10 +61,10 @@ class _CitasPageState extends State<CitasPage> {
 
   Future<void> _loadData() async {
     final results = await Future.wait([
-      widget.clientService.getPets(),
-      widget.clientService.getServices(),
-      widget.clientService.getPrices(),
-      widget.clientService.getAppointments(),
+      widget.petsService.getPets(),
+      widget.appointmentsService.getServices(),
+      widget.appointmentsService.getPrices(),
+      widget.appointmentsService.getAppointments(),
     ]);
 
     _pets = results[0] as List<Pet>;
@@ -56,6 +74,13 @@ class _CitasPageState extends State<CitasPage> {
     _prices =
         (results[2] as List<ServicePrice>).where((price) => price.active).toList();
     _appointments = results[3] as List<Appointment>;
+  }
+
+  List<ServiceItem> get _availableServices {
+    if (_selectedModality == 'DOMICILIO') {
+      return _services.where((service) => service.homeAvailable).toList();
+    }
+    return _services;
   }
 
   List<ServicePrice> get _availablePrices {
@@ -69,12 +94,52 @@ class _CitasPageState extends State<CitasPage> {
         .toList();
   }
 
+  Future<void> _loadAvailability() async {
+    if (_selectedServiceId == null || _dateController.text.trim().isEmpty) {
+      setState(() => _availability = <AvailabilitySlot>[]);
+      return;
+    }
+
+    setState(() {
+      _isLoadingAvailability = true;
+      _message = null;
+    });
+
+    try {
+      final slots = await widget.appointmentsService.getAvailability(
+        serviceId: _selectedServiceId!,
+        date: _dateController.text.trim(),
+        modality: _selectedModality,
+      );
+      if (!mounted) return;
+      setState(() => _availability = slots);
+    } on ClientException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _message = error.isForbidden
+            ? 'No tienes permiso para consultar disponibilidad.'
+            : error.toString();
+        _availability = <AvailabilitySlot>[];
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingAvailability = false);
+      }
+    }
+  }
+
   Future<void> _saveAppointment() async {
     if (!(_formKey.currentState?.validate() ?? false) ||
         _selectedPetId == null ||
         _selectedServiceId == null ||
         _selectedPriceId == null) {
       setState(() => _message = 'Completa los datos de la reserva.');
+      return;
+    }
+
+    if (_selectedModality == 'DOMICILIO' &&
+        _addressController.text.trim().isEmpty) {
+      setState(() => _message = 'La direccion es obligatoria para domicilio.');
       return;
     }
 
@@ -96,21 +161,49 @@ class _CitasPageState extends State<CitasPage> {
 
     try {
       if (_editingAppointmentId == null) {
-        await widget.clientService.createAppointment(request);
+        await widget.appointmentsService.createAppointment(request);
       } else {
-        await widget.clientService.updateAppointment(_editingAppointmentId!, request);
+        await widget.appointmentsService
+            .updateAppointment(_editingAppointmentId!, request);
       }
 
       _clearForm();
       await _loadData();
       if (!mounted) return;
       setState(() => _message = 'Reserva guardada correctamente.');
+    } on ClientException catch (error) {
+      final message = error.isForbidden
+          ? 'No tienes permiso para gestionar reservas.'
+          : error.toString();
+      setState(() => _message = message);
     } catch (error) {
       setState(() => _message = error.toString());
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
       }
+    }
+  }
+
+  Future<void> _cancelAppointment(Appointment appointment) async {
+    setState(() {
+      _isSaving = true;
+      _message = null;
+    });
+
+    try {
+      await widget.appointmentsService.cancelAppointment(appointment.id);
+      await _loadData();
+      if (!mounted) return;
+      setState(() => _message = 'Reserva cancelada correctamente.');
+    } on ClientException catch (error) {
+      setState(() {
+        _message = error.isForbidden
+            ? 'No tienes permiso para cancelar reservas.'
+            : error.toString();
+      });
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -127,6 +220,7 @@ class _CitasPageState extends State<CitasPage> {
       _descriptionController.text = appointment.description ?? '';
       _message = null;
     });
+    _loadAvailability();
   }
 
   void _clearForm() {
@@ -139,6 +233,14 @@ class _CitasPageState extends State<CitasPage> {
     _timeController.clear();
     _addressController.clear();
     _descriptionController.clear();
+    _availability = <AvailabilitySlot>[];
+  }
+
+  String _friendlyError(Object? error) {
+    if (error is ClientException && error.isForbidden) {
+      return 'No tienes permiso para consultar reservas.';
+    }
+    return error.toString();
   }
 
   @override
@@ -158,7 +260,7 @@ class _CitasPageState extends State<CitasPage> {
 
           if (snapshot.hasError) {
             return _ErrorState(
-              message: snapshot.error.toString(),
+              message: _friendlyError(snapshot.error),
               onRetry: () => setState(() => _loadFuture = _loadData()),
             );
           }
@@ -171,7 +273,13 @@ class _CitasPageState extends State<CitasPage> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildForm(),
+                if (_canCreateAppointment || _canEditAppointment)
+                  _buildForm()
+                else
+                  const Text(
+                    'No tienes permiso para gestionar reservas.',
+                    style: TextStyle(color: Colors.black54),
+                  ),
                 const SizedBox(height: 20),
                 Text(
                   'Reservas registradas',
@@ -184,8 +292,13 @@ class _CitasPageState extends State<CitasPage> {
                   ..._appointments.map(
                     (appointment) => _AppointmentCard(
                       appointment: appointment,
-                      onEdit: appointment.status == 'PENDIENTE'
+                      onEdit: _canEditAppointment &&
+                              appointment.status == 'PENDIENTE'
                           ? () => _startEdit(appointment)
+                          : null,
+                      onCancel: _canDeleteAppointment &&
+                              appointment.status == 'PENDIENTE'
+                          ? () => _cancelAppointment(appointment)
                           : null,
                     ),
                   ),
@@ -217,7 +330,7 @@ class _CitasPageState extends State<CitasPage> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<int>(
-                value: _selectedPetId,
+                initialValue: _selectedPetId,
                 decoration: const InputDecoration(labelText: 'Mascota'),
                 items: _pets
                     .map(
@@ -231,9 +344,9 @@ class _CitasPageState extends State<CitasPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
-                value: _selectedServiceId,
+                initialValue: _selectedServiceId,
                 decoration: const InputDecoration(labelText: 'Servicio'),
-                items: _services
+                items: _availableServices
                     .map(
                       (service) => DropdownMenuItem(
                         value: service.id,
@@ -246,11 +359,12 @@ class _CitasPageState extends State<CitasPage> {
                     _selectedServiceId = value;
                     _selectedPriceId = null;
                   });
+                  _loadAvailability();
                 },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _selectedModality,
+                initialValue: _selectedModality,
                 decoration: const InputDecoration(labelText: 'Modalidad'),
                 items: const [
                   DropdownMenuItem(value: 'CLINICA', child: Text('Clinica')),
@@ -261,12 +375,14 @@ class _CitasPageState extends State<CitasPage> {
                   setState(() {
                     _selectedModality = value;
                     _selectedPriceId = null;
+                    _selectedServiceId = null;
                   });
+                  _loadAvailability();
                 },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
-                value: _selectedPriceId,
+                initialValue: _selectedPriceId,
                 decoration: const InputDecoration(labelText: 'Precio'),
                 items: _availablePrices
                     .map(
@@ -285,6 +401,7 @@ class _CitasPageState extends State<CitasPage> {
                   labelText: 'Fecha programada',
                   hintText: 'YYYY-MM-DD',
                 ),
+                onChanged: (_) => _loadAvailability(),
                 validator: (value) =>
                     (value == null || value.trim().isEmpty) ? 'Requerido' : null,
               ),
@@ -298,6 +415,8 @@ class _CitasPageState extends State<CitasPage> {
                 validator: (value) =>
                     (value == null || value.trim().isEmpty) ? 'Requerido' : null,
               ),
+              const SizedBox(height: 12),
+              _buildAvailabilityPanel(),
               if (_selectedModality == 'DOMICILIO') ...[
                 const SizedBox(height: 12),
                 TextFormField(
@@ -306,7 +425,7 @@ class _CitasPageState extends State<CitasPage> {
                   validator: (value) {
                     if (_selectedModality != 'DOMICILIO') return null;
                     return (value == null || value.trim().isEmpty)
-                        ? 'Requerido para domicilio'
+                        ? 'La direccion es obligatoria para domicilio'
                         : null;
                   },
                 ),
@@ -319,7 +438,12 @@ class _CitasPageState extends State<CitasPage> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _isSaving ? null : _saveAppointment,
+                onPressed: _isSaving ||
+                        (_editingAppointmentId == null
+                            ? !_canCreateAppointment
+                            : !_canEditAppointment)
+                    ? null
+                    : _saveAppointment,
                 child: _isSaving
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(_editingAppointmentId == null
@@ -329,7 +453,7 @@ class _CitasPageState extends State<CitasPage> {
               if (_editingAppointmentId != null) ...[
                 const SizedBox(height: 8),
                 OutlinedButton(
-                  onPressed: () => setState(_clearForm),
+                  onPressed: _canEditAppointment ? () => setState(_clearForm) : null,
                   child: const Text('Cancelar edicion'),
                 ),
               ],
@@ -343,13 +467,57 @@ class _CitasPageState extends State<CitasPage> {
       ),
     );
   }
+
+  Widget _buildAvailabilityPanel() {
+    if (_isLoadingAvailability) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(),
+      );
+    }
+
+    if (_availability.isEmpty) {
+      return const Text(
+        'Sin horarios consultados.',
+        style: TextStyle(color: Colors.black54),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Disponibilidad',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _availability.map((slot) {
+            final label = slot.label ?? slot.time;
+            return Chip(
+              label: Text(label),
+              backgroundColor:
+                  slot.available ? Colors.green.shade50 : Colors.red.shade50,
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 }
 
 class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard({required this.appointment, this.onEdit});
+  const _AppointmentCard({
+    required this.appointment,
+    this.onEdit,
+    this.onCancel,
+  });
 
   final Appointment appointment;
   final VoidCallback? onEdit;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -365,12 +533,21 @@ class _AppointmentCard extends StatelessWidget {
           '${appointment.date} ${appointment.time}\n${appointment.modality} - ${appointment.status}',
         ),
         isThreeLine: true,
-        trailing: onEdit == null
-            ? null
-            : IconButton(
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onEdit != null)
+              IconButton(
                 icon: const Icon(Icons.edit, color: Color(0xFF6A11CB)),
                 onPressed: onEdit,
               ),
+            if (onCancel != null)
+              IconButton(
+                icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                onPressed: onCancel,
+              ),
+          ],
+        ),
       ),
     );
   }
