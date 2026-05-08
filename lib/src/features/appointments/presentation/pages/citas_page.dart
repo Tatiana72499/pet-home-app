@@ -1,5 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:pethome_app/src/core/network/api_client.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
 import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
@@ -24,6 +27,29 @@ class _CitasPageState extends State<CitasPage> {
   static const _purple = Color(0xFF6A11CB);
   static const _softPurple = Color(0xFFF3E9FF);
   static const _orange = Color(0xFFFF9800);
+  static const List<String> _weekdaysShort = <String>[
+    'Lun',
+    'Mar',
+    'Mie',
+    'Jue',
+    'Vie',
+    'Sab',
+    'Dom',
+  ];
+  static const List<String> _monthsShort = <String>[
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
+  ];
 
   final _dateController = TextEditingController();
   final _timeController = TextEditingController();
@@ -43,6 +69,7 @@ class _CitasPageState extends State<CitasPage> {
   String _selectedModality = 'CLINICA';
   bool _isSaving = false;
   bool _isLoadingAvailability = false;
+  bool _isGettingLocation = false;
   String? _message;
 
   bool _showWizard = false;
@@ -89,6 +116,17 @@ class _CitasPageState extends State<CitasPage> {
       widget.permissions.canExecute('SERV_CITAS') ||
       widget.permissions.canDelete('CITAS') ||
       widget.permissions.canExecute('CITAS');
+
+  _Coordinates? get _addressCoordinates =>
+      _parseCoordinates(_addressController.text.trim());
+
+  List<DateTime> get _nextTenDays {
+    final today = DateUtils.dateOnly(DateTime.now());
+    return List<DateTime>.generate(
+      10,
+      (index) => today.add(Duration(days: index)),
+    );
+  }
 
   List<ServiceItem> get _availableServices {
     return _filteredServicesByModalidad(_selectedModality);
@@ -150,9 +188,12 @@ class _CitasPageState extends State<CitasPage> {
       _selectedModality = modalidad;
       _selectedServiceId = null;
       _selectedPriceId = null;
-      _wizardStep = 1;
       _message = null;
       _availability = <AvailabilitySlot>[];
+      _timeController.clear();
+      if (modalidad == 'CLINICA') {
+        _addressController.clear();
+      }
     });
   }
 
@@ -166,6 +207,7 @@ class _CitasPageState extends State<CitasPage> {
       _selectedPriceId = null;
       _message = null;
     });
+    _loadAvailability();
   }
 
   bool get _hasServicesForCurrentModality => _availableServices.isNotEmpty;
@@ -250,7 +292,7 @@ class _CitasPageState extends State<CitasPage> {
   }
 
   Future<void> _loadAvailability() async {
-    if (_selectedServiceId == null || _dateController.text.trim().isEmpty) {
+    if (_dateController.text.trim().isEmpty) {
       setState(() => _availability = <AvailabilitySlot>[]);
       return;
     }
@@ -434,6 +476,142 @@ class _CitasPageState extends State<CitasPage> {
     _addressController.clear();
     _descriptionController.clear();
     _availability = <AvailabilitySlot>[];
+    _dateController.text = _formatApiDate(_nextTenDays.first);
+    _message = null;
+    _isGettingLocation = false;
+  }
+
+  String _formatApiDate(DateTime date) {
+    final normalized = DateUtils.dateOnly(date);
+    final year = normalized.year.toString().padLeft(4, '0');
+    final month = normalized.month.toString().padLeft(2, '0');
+    final day = normalized.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+  String _formatShortDate(DateTime date) {
+    final normalized = DateUtils.dateOnly(date);
+    final today = DateUtils.dateOnly(DateTime.now());
+    if (normalized == today) {
+      return 'Hoy';
+    }
+    if (normalized == today.add(const Duration(days: 1))) {
+      return 'Manana';
+    }
+    return _weekdaysShort[normalized.weekday - 1];
+  }
+
+  String _formatLongDate(DateTime date) {
+    return '${date.day} ${_monthsShort[date.month - 1]}';
+  }
+
+  Future<void> _selectDate(DateTime date) async {
+    setState(() {
+      _dateController.text = _formatApiDate(date);
+      _timeController.clear();
+      _availability = <AvailabilitySlot>[];
+      _message = null;
+    });
+    await _loadAvailability();
+  }
+
+  void _selectTime(String time) {
+    setState(() {
+      _timeController.text = time;
+      _message = null;
+    });
+  }
+
+  _Coordinates? _parseCoordinates(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final match = RegExp(
+      r'(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)',
+    ).firstMatch(value);
+    if (match == null) return null;
+
+    final lat = double.tryParse(match.group(1) ?? '');
+    final lng = double.tryParse(match.group(2) ?? '');
+    if (lat == null || lng == null) return null;
+    if (lat.abs() > 90 || lng.abs() > 180) return null;
+    return _Coordinates(lat: lat, lng: lng);
+  }
+
+  String _formatCoordinates(_Coordinates coords) {
+    return '${coords.lat.toStringAsFixed(6)}, ${coords.lng.toStringAsFixed(6)}';
+  }
+
+  void _updateAddressFromCoordinates(_Coordinates coords) {
+    _addressController.text = _formatCoordinates(coords);
+    setState(() {
+      _message = null;
+    });
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() {
+      _isGettingLocation = true;
+      _message = null;
+    });
+
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        throw const ClientException(
+          'Activa la ubicacion del dispositivo para usar esta opcion.',
+        );
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied) {
+        throw const ClientException(
+          'No se otorgaron permisos de ubicacion.',
+        );
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw const ClientException(
+          'Los permisos de ubicacion fueron bloqueados. Habilitalos desde la configuracion del dispositivo.',
+        );
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      final coords = _Coordinates(
+        lat: position.latitude,
+        lng: position.longitude,
+      );
+
+      _updateAddressFromCoordinates(coords);
+
+      if (!mounted) return;
+      setState(() {
+        _message = 'Ubicacion cargada correctamente.';
+      });
+    } on ClientException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _message = error.toString();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _message = 'No se pudo obtener la ubicacion actual.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGettingLocation = false;
+        });
+      }
+    }
   }
 
   bool _isEditableStatus(String status) {
@@ -587,6 +765,10 @@ class _CitasPageState extends State<CitasPage> {
                             _showWizard = true;
                             _showSuccess = false;
                             _wizardStep = 1;
+                            _dateController.text = _formatApiDate(_nextTenDays.first);
+                            _timeController.clear();
+                            _availability = <AvailabilitySlot>[];
+                            _message = null;
                           }
                         }),
                         child: Text(_showWizard ? 'Cerrar' : '+ Solicitar'),
@@ -645,14 +827,46 @@ class _CitasPageState extends State<CitasPage> {
             const SizedBox(height: 6),
             Text(
               _wizardStep == 1
-                  ? 'Mascota y servicio'
+                  ? 'Mascota, servicio y modalidad'
                   : _wizardStep == 2
-                      ? 'Modalidad y horario'
+                      ? 'Calendario y horario'
                       : 'Direccion y resumen',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             if (_wizardStep == 1) ...[
+              const Text('Modalidad', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: _selectedModality == 'CLINICA' ? _softPurple : null,
+                        side: BorderSide(
+                          color: _selectedModality == 'CLINICA' ? _purple : Colors.grey.shade300,
+                        ),
+                      ),
+                      onPressed: () => _onModalityChanged('CLINICA'),
+                      child: const Text('Clinica'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: _selectedModality == 'DOMICILIO' ? const Color(0xFFFFF1E6) : null,
+                        side: BorderSide(
+                          color: _selectedModality == 'DOMICILIO' ? Colors.orange : Colors.grey.shade300,
+                        ),
+                      ),
+                      onPressed: () => _onModalityChanged('DOMICILIO'),
+                      child: const Text('Domicilio'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               if (!_hasServicesForCurrentModality)
                 const Padding(
                   padding: EdgeInsets.only(bottom: 10),
@@ -742,52 +956,76 @@ class _CitasPageState extends State<CitasPage> {
                 ),
             ],
             if (_wizardStep == 2) ...[
-              const Text('Modalidad', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
+              const Text(
+                'Selecciona un dia dentro de los proximos 10 dias',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 92,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _nextTenDays.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final day = _nextTenDays[index];
+                    final dayValue = _formatApiDate(day);
+                    final selected = _dateController.text == dayValue;
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () => _selectDate(day),
+                      child: Container(
+                        width: 84,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: selected ? _softPurple : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: selected ? _purple : Colors.grey.shade300,
+                            width: selected ? 1.6 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _formatShortDate(day),
+                              style: TextStyle(
+                                color: selected ? _purple : Colors.black87,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _formatLongDate(day),
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
+                  const Icon(Icons.event_available, size: 18, color: _purple),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: _selectedModality == 'CLINICA' ? _softPurple : null,
-                        side: BorderSide(
-                          color: _selectedModality == 'CLINICA' ? _purple : Colors.grey.shade300,
-                        ),
-                      ),
-                      onPressed: () => _onModalityChanged('CLINICA'),
-                      child: const Text('Clinica'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: _selectedModality == 'DOMICILIO' ? const Color(0xFFFFF1E6) : null,
-                        side: BorderSide(
-                          color: _selectedModality == 'DOMICILIO' ? Colors.orange : Colors.grey.shade300,
-                        ),
-                      ),
-                      onPressed: () => _onModalityChanged('DOMICILIO'),
-                      child: const Text('Domicilio'),
+                    child: Text(
+                      'Fecha elegida: ${_dateController.text}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _dateController,
-                decoration: const InputDecoration(labelText: 'Fecha (YYYY-MM-DD)'),
-                onChanged: (_) {
-                  setState(() {});
-                  _loadAvailability();
-                },
+              const SizedBox(height: 12),
+              const Text(
+                'Horarios disponibles para ese dia',
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 10),
-              TextFormField(
-                controller: _timeController,
-                decoration: const InputDecoration(labelText: 'Hora (HH:MM)'),
-                onChanged: (_) => setState(() {}),
-              ),
               if (_dateController.text.trim().isNotEmpty &&
                   _timeController.text.trim().isNotEmpty &&
                   !_isDateTimeFuture)
@@ -811,19 +1049,37 @@ class _CitasPageState extends State<CitasPage> {
                   runSpacing: 8,
                   children: _availability
                       .map(
-                        (slot) => Chip(
-                          backgroundColor:
-                              slot.available ? const Color(0xFFE4F7EC) : const Color(0xFFFFECEC),
-                          side: BorderSide(
-                            color: slot.available ? Colors.green.shade200 : Colors.red.shade200,
-                          ),
-                          label: Text(slot.label ?? slot.time),
-                        ),
+                        (slot) {
+                          final selected = _timeController.text.trim() == slot.time;
+                          return ChoiceChip(
+                            selected: selected,
+                            selectedColor: _softPurple,
+                            backgroundColor: slot.available
+                                ? const Color(0xFFE4F7EC)
+                                : const Color(0xFFFFECEC),
+                            side: BorderSide(
+                              color: selected
+                                  ? _purple
+                                  : (slot.available ? Colors.green.shade200 : Colors.red.shade200),
+                            ),
+                            label: Text(slot.label ?? slot.time),
+                            onSelected: slot.available ? (_) => _selectTime(slot.time) : null,
+                          );
+                        },
                       )
                       .toList(),
                 )
               else
-                const Text('Sin horarios consultados.'),
+                const Text(
+                  'No hay horarios disponibles para este dia. Elige otra fecha.',
+                ),
+              if (_timeController.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Hora elegida: ${_timeController.text}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
               if (_availability.isNotEmpty &&
                   _timeController.text.trim().isNotEmpty &&
                   !_isSelectedTimeAvailable)
@@ -836,12 +1092,119 @@ class _CitasPageState extends State<CitasPage> {
                 ),
             ],
             if (_wizardStep == 3) ...[
-              if (_selectedModality == 'DOMICILIO')
+              if (_selectedModality == 'DOMICILIO') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isGettingLocation ? null : _useCurrentLocation,
+                        icon: const Icon(Icons.my_location),
+                        label: Text(
+                          _isGettingLocation
+                              ? 'Obteniendo ubicacion...'
+                              : 'Usar mi ubicacion',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 TextFormField(
                   controller: _addressController,
-                  decoration: const InputDecoration(labelText: 'Direccion de atencion'),
+                  decoration: const InputDecoration(
+                    labelText: 'Direccion de atencion',
+                    helperText: 'Se guardara en formato latitud, longitud.',
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
-              if (_selectedModality == 'DOMICILIO') const SizedBox(height: 10),
+                const SizedBox(height: 10),
+                if (_addressCoordinates != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade200),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            height: 220,
+                            child: FlutterMap(
+                              options: MapOptions(
+                                initialCenter: LatLng(
+                                  _addressCoordinates!.lat,
+                                  _addressCoordinates!.lng,
+                                ),
+                                initialZoom: 15,
+                                onTap: (_, point) {
+                                  _updateAddressFromCoordinates(
+                                    _Coordinates(
+                                      lat: point.latitude,
+                                      lng: point.longitude,
+                                    ),
+                                  );
+                                },
+                              ),
+                              children: [
+                                TileLayer(
+                                  urlTemplate:
+                                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                  userAgentPackageName: 'com.pethome.app',
+                                ),
+                                MarkerLayer(
+                                  markers: [
+                                    Marker(
+                                      point: LatLng(
+                                        _addressCoordinates!.lat,
+                                        _addressCoordinates!.lng,
+                                      ),
+                                      width: 52,
+                                      height: 52,
+                                      child: const Icon(
+                                        Icons.location_on,
+                                        color: _orange,
+                                        size: 42,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Coordenadas: ${_formatCoordinates(_addressCoordinates!)}',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Puedes hacer zoom, mover el mapa y tocar para mover la marca.',
+                                  style: TextStyle(color: Colors.black54),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (_addressCoordinates == null &&
+                    _addressController.text.trim().isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Ingresa coordenadas validas con formato: latitud, longitud',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+              ],
               TextFormField(
                 controller: _descriptionController,
                 maxLines: 2,
@@ -935,7 +1298,11 @@ class _CitasPageState extends State<CitasPage> {
   }
 
   Widget _buildStepHeader() {
-    final labels = <String>['Mascota y servicio', 'Modalidad y horario', 'Confirmar'];
+    final labels = <String>[
+      'Mascota y servicio',
+      'Calendario',
+      'Confirmar',
+    ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -1152,4 +1519,14 @@ class _ErrorState extends StatelessWidget {
       ),
     );
   }
+}
+
+class _Coordinates {
+  const _Coordinates({
+    required this.lat,
+    required this.lng,
+  });
+
+  final double lat;
+  final double lng;
 }

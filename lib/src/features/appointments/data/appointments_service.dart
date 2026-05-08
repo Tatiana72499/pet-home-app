@@ -60,8 +60,7 @@ class AppointmentsService {
     required String modality,
   }) async {
     final safeDate = _normalizeDate(date);
-    final path =
-        '/api/gestion/servicios/agenda/disponibilidad/?servicio=$serviceId&fecha=$safeDate&modalidad=$modality';
+    final path = '/api/gestion/servicios/agenda/?fecha=$safeDate';
 
     if (kDebugMode) {
       debugPrint('[AppointmentsService] GET $path');
@@ -241,20 +240,26 @@ class AvailabilitySlot {
         raw = decoded['slots'] as List;
       } else if (decoded['disponibilidad'] is List) {
         raw = decoded['disponibilidad'] as List;
+      } else if (decoded['horarios_disponibles'] is List) {
+        raw = decoded['horarios_disponibles'] as List;
       }
     }
 
     return raw.whereType<Map<String, dynamic>>().map((item) {
       final time = (item['hora'] ??
+              item['inicio'] ??
               item['hora_inicio'] ??
               item['time'] ??
               item['slot'] ??
               '')
           .toString();
-      final available = _readBool(
-        item['disponible'] ?? item['libre'] ?? item['available'],
-      );
-      final label = item['etiqueta']?.toString();
+      final available = item.containsKey('inicio')
+          ? true
+          : _readBool(item['disponible'] ?? item['libre'] ?? item['available']);
+      final label = item['etiqueta']?.toString() ??
+          ((item['inicio'] != null && item['fin'] != null)
+              ? '${item['inicio']} - ${item['fin']}'
+              : null);
       return AvailabilitySlot(time: time, available: available, label: label);
     }).toList();
   }
