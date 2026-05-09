@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/widgets/location_coordinate_picker.dart';
 import '../controllers/chatbot_controller.dart';
 import '../widgets/chat_input.dart';
 import '../widgets/message_bubble.dart';
@@ -15,6 +16,7 @@ class ChatbotPage extends StatefulWidget {
 class _ChatbotPageState extends State<ChatbotPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool _isSendingMessage = false;
 
   @override
   void dispose() {
@@ -32,6 +34,78 @@ class _ChatbotPageState extends State<ChatbotPage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  Future<void> _shareLocation(ChatbotController chatbot) async {
+    if (chatbot.isLoading) return;
+
+    var selectedCoordinates = '';
+    final sent = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  16 + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Compartir ubicacion',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    LocationCoordinatePicker(
+                      initialCoordinates: selectedCoordinates,
+                      buttonLabel: 'Usar mi ubicacion actual',
+                      onChanged: (value) {
+                        setSheetState(() => selectedCoordinates = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: selectedCoordinates.trim().isEmpty
+                          ? null
+                          : () => Navigator.of(sheetContext).pop(true),
+                      child: const Text('Enviar ubicacion'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (sent == true && mounted) {
+      await chatbot.sharePickedLocation(selectedCoordinates);
+    }
+  }
+
+  Future<void> _handleSend(ChatbotController chatbot) async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _isSendingMessage || chatbot.isLoading) return;
+
+    setState(() => _isSendingMessage = true);
+    _controller.clear();
+    try {
+      await chatbot.sendMessage(text);
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingMessage = false);
+      }
+    }
   }
 
   @override
@@ -98,15 +172,11 @@ class _ChatbotPageState extends State<ChatbotPage> {
                   ),
                 ChatInput(
                   controller: _controller,
-                  isLoading: chatbot.isLoading,
+                  isLoading: chatbot.isLoading || _isSendingMessage,
                   isListening: chatbot.isListening,
-                  onShareLocation: chatbot.shareLocation,
+                  onShareLocation: () => _shareLocation(chatbot),
                   onVoice: chatbot.toggleVoiceMessage,
-                  onSend: () async {
-                    final text = _controller.text;
-                    _controller.clear();
-                    await chatbot.sendMessage(text);
-                  },
+                  onSend: () => _handleSend(chatbot),
                 ),
               ],
             );

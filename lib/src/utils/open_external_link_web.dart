@@ -4,7 +4,8 @@ import 'dart:html' as html;
 Future<bool> openExternalLink(String url) async {
   final anchor = html.AnchorElement(href: url)
     ..target = '_blank'
-    ..rel = 'noopener noreferrer';
+    ..rel = 'noopener noreferrer'
+    ..download = '';
   anchor.click();
   return true;
 }

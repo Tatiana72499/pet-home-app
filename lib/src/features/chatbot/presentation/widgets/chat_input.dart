@@ -30,10 +30,10 @@ class ChatInput extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: controller,
-                textInputAction: TextInputAction.send,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
                 minLines: 1,
                 maxLines: 4,
-                onSubmitted: (_) => onSend(),
                 decoration: InputDecoration(
                   hintText: 'Escribe tu mensaje para el bot',
                   filled: true,

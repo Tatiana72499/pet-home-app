@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:pethome_app/src/core/network/api_client.dart';
+import 'package:pethome_app/src/core/widgets/location_coordinate_picker.dart';
 import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
 import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
@@ -1068,18 +1069,17 @@ class _CitasPageState extends State<CitasPage> {
                   ),
                 ),
             ],
-            if (_wizardStep == 3) ...[
-              if (_selectedModality == 'DOMICILIO') ...[
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Direccion de atencion',
-                    hintText: 'Ej. Av. Viedma #123',
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 10),
-              ],
+	            if (_wizardStep == 3) ...[
+	              if (_selectedModality == 'DOMICILIO') ...[
+	                LocationCoordinatePicker(
+	                  initialCoordinates: _addressController.text,
+	                  onChanged: (value) {
+	                    _addressController.text = value;
+	                    setState(() => _message = null);
+	                  },
+	                ),
+	                const SizedBox(height: 10),
+	              ],
               TextFormField(
                 controller: _descriptionController,
                 maxLines: 2,

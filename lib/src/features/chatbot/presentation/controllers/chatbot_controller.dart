@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -17,7 +16,7 @@ class ChatbotController extends ChangeNotifier {
     ChatMessage(
       text:
           'Hola, soy PetBot. Puedo ayudarte a agendar, reprogramar y cancelar citas. '
-          'Para citas a domicilio, escribeme la direccion donde debemos atender.',
+          'Tambien puedes escribirme o compartir tu ubicacion para citas a domicilio.',
       isBot: true,
     ),
   ];
@@ -30,6 +29,9 @@ class ChatbotController extends ChangeNotifier {
   String? speakingText;
   String? errorMessage;
   String _lastVoiceText = '';
+  String? _lastOutgoingMessage;
+  DateTime? _lastOutgoingAt;
+  bool _lastOutgoingWasLocation = false;
   bool _isFinishingVoiceInput = false;
   bool _ttsConfigured = false;
   bool _isDisposed = false;
@@ -38,58 +40,15 @@ class ChatbotController extends ChangeNotifier {
     final message = text.trim();
     if (message.isEmpty || isLoading) return;
 
-    messages.add(ChatMessage(text: message, isBot: false));
-    errorMessage = null;
-    notifyListeners();
-
-    await _deliverMessage(message);
+    await _sendOutgoingMessage(message);
   }
 
-  Future<void> shareLocation() async {
-    if (isLoading) return;
+  Future<void> sharePickedLocation(String coordinates) async {
+    final address = coordinates.trim();
+    if (address.isEmpty || isLoading) return;
 
-    errorMessage = null;
-    notifyListeners();
-
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      errorMessage = 'Activa la ubicacion del dispositivo para compartirla con el bot.';
-      notifyListeners();
-      return;
-    }
-
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      errorMessage = 'No se concedio permiso para acceder a tu ubicacion.';
-      notifyListeners();
-      return;
-    }
-
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
-    );
-
-    final address =
-        '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
     _sharedAddress = address;
-
-    messages.add(
-      ChatMessage(
-        text: address,
-        isBot: false,
-        isLocation: true,
-      ),
-    );
-    notifyListeners();
-
-    await _deliverMessage(address);
+    await _sendOutgoingMessage(address, isLocation: true);
   }
 
   Future<void> toggleVoiceMessage() async {
@@ -175,8 +134,30 @@ class ChatbotController extends ChangeNotifier {
     _isFinishingVoiceInput = false;
   }
 
-  Future<void> _deliverMessage(String message) async {
+  Future<void> _sendOutgoingMessage(
+    String message, {
+    bool isLocation = false,
+  }) async {
+    final now = DateTime.now();
+    if (_lastOutgoingMessage == message &&
+        _lastOutgoingWasLocation == isLocation &&
+        _lastOutgoingAt != null &&
+        now.difference(_lastOutgoingAt!) < const Duration(milliseconds: 1200)) {
+      return;
+    }
+
+    _lastOutgoingMessage = message;
+    _lastOutgoingWasLocation = isLocation;
+    _lastOutgoingAt = now;
     isLoading = true;
+    errorMessage = null;
+    messages.add(
+      ChatMessage(
+        text: message,
+        isBot: false,
+        isLocation: isLocation,
+      ),
+    );
     notifyListeners();
 
     try {

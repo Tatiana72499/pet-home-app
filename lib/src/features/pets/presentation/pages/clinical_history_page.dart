@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
 import 'package:pethome_app/src/features/pets/models/clinical_history.dart';
 import 'package:pethome_app/src/utils/open_external_link.dart';
@@ -34,7 +35,39 @@ class _ClinicalHistoryPageState extends State<ClinicalHistoryPage> {
 
   Future<void> _openFile(String? value) async {
     final resolvedUrl = _resolveMediaUrl(value);
-    if (resolvedUrl.isEmpty) return;
+    if (resolvedUrl.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El archivo no tiene una URL valida para descargar.')),
+      );
+      return;
+    }
+
+    try {
+      final uri = Uri.parse(resolvedUrl);
+      var response = await http.head(uri);
+      if (response.statusCode == 405) {
+        response = await http.get(uri);
+      }
+
+      if (response.statusCode >= 400) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El archivo ya no existe en el servidor o no esta disponible.'),
+          ),
+        );
+        return;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo verificar el archivo antes de descargarlo.'),
+        ),
+      );
+      return;
+    }
 
     final launched = await openExternalLink(resolvedUrl);
     if (!launched && mounted) {
@@ -266,8 +299,8 @@ class _ClinicalHistoryPageState extends State<ClinicalHistoryPage> {
                   ].whereType<String>().join(' · ')),
                   trailing: TextButton.icon(
                     onPressed: () => _openFile(file.urlArchivo),
-                    icon: const Icon(Icons.open_in_new, size: 18),
-                    label: const Text('Ver/Descargar'),
+                    icon: const Icon(Icons.download_outlined, size: 18),
+                    label: const Text('Descargar'),
                   ),
                 ),
               ),

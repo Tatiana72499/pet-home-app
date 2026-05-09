@@ -60,7 +60,9 @@ class AppointmentsService {
     required String modality,
   }) async {
     final safeDate = _normalizeDate(date);
-    final path = '/api/gestion/servicios/agenda/?fecha=$safeDate';
+    final safeModality = Uri.encodeQueryComponent(modality.trim().toUpperCase());
+    final path =
+        '/api/gestion/servicios/agenda/?fecha=$safeDate&servicio=$serviceId&modalidad=$safeModality';
 
     if (kDebugMode) {
       debugPrint('[AppointmentsService] GET $path');
