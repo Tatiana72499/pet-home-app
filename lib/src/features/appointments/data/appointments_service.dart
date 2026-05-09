@@ -185,6 +185,7 @@ class AppointmentRequest {
     required this.time,
     this.endTime,
     required this.modality,
+    this.estado,
     this.address,
     this.description,
   });
@@ -196,6 +197,7 @@ class AppointmentRequest {
   final String time;
   final String? endTime;
   final String modality;
+  final String? estado;
   final String? address;
   final String? description;
 
@@ -206,6 +208,7 @@ class AppointmentRequest {
         'fecha_programada': _normalizeDate(date),
         'hora_inicio': _normalizeTime(time),
         'modalidad': modality,
+        if (estado != null) 'estado': estado,
         'direccion_cita': modality == 'DOMICILIO' ? address : null,
         'descripcion': description,
       };
