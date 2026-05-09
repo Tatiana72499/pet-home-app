@@ -271,17 +271,23 @@ class _CitasPageState extends State<CitasPage> {
   }
 
   Future<void> _loadData() async {
-    final results = await Future.wait([
-      widget.petsService.getPets(),
-      widget.appointmentsService.getServices(),
-      widget.appointmentsService.getPrices(),
-      widget.appointmentsService.getAppointments(),
-    ]);
+    final canCreateOrManage = _canCreateAppointment || _canManageReservations;
+    final canViewOrManageReservations = _canViewReservations || _canManageReservations;
 
-    _pets = results[0] as List<Pet>;
-    _services = (results[1] as List<ServiceItem>).where((service) => service.active).toList();
-    _prices = (results[2] as List<ServicePrice>).where((price) => price.active).toList();
-    _appointments = results[3] as List<Appointment>;
+    _pets = canCreateOrManage ? await widget.petsService.getPets() : <Pet>[];
+    _services = canCreateOrManage
+      ? (await widget.appointmentsService.getServices())
+        .where((service) => service.active)
+        .toList()
+      : <ServiceItem>[];
+    _prices = canCreateOrManage
+      ? (await widget.appointmentsService.getPrices())
+        .where((price) => price.active)
+        .toList()
+      : <ServicePrice>[];
+    _appointments = canViewOrManageReservations
+      ? await widget.appointmentsService.getAppointments()
+      : <Appointment>[];
   }
 
   Future<void> _loadAvailability() async {
@@ -518,6 +524,52 @@ class _CitasPageState extends State<CitasPage> {
     return status == 'PENDIENTE' || status == 'CONFIRMADA';
   }
 
+  bool _isConfirmableStatus(String status) {
+    return status == 'PENDIENTE';
+  }
+
+  bool _isFinalizableStatus(String status) {
+    return status == 'CONFIRMADA';
+  }
+
+  Future<void> _setAppointmentStatus(
+    Appointment appointment,
+    String estado,
+  ) async {
+    setState(() {
+      _isSaving = true;
+      _message = null;
+    });
+
+    try {
+      final request = AppointmentRequest(
+        petId: appointment.petId,
+        serviceId: appointment.serviceId,
+        priceId: appointment.priceId,
+        date: appointment.date,
+        time: appointment.time,
+        endTime: null,
+        modality: appointment.modality,
+        estado: estado,
+        address: appointment.address,
+        description: appointment.description,
+      );
+
+      await widget.appointmentsService.updateAppointment(appointment.id, request);
+      await _loadData();
+      if (!mounted) return;
+
+      final message = estado == 'CONFIRMADA'
+          ? 'Reserva confirmada correctamente.'
+          : 'Reserva finalizada correctamente.';
+      setState(() => _message = message);
+    } on ClientException catch (error) {
+      setState(() => _message = _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   void _showDetail(Appointment appointment) {
     showModalBottomSheet<void>(
       context: context,
@@ -526,6 +578,8 @@ class _CitasPageState extends State<CitasPage> {
       ),
       builder: (context) {
         final editable = _isEditableStatus(appointment.status);
+        final canConfirm = _canEditAppointment && _isConfirmableStatus(appointment.status);
+        final canFinalize = _canEditAppointment && _isFinalizableStatus(appointment.status);
         return Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -544,33 +598,56 @@ class _CitasPageState extends State<CitasPage> {
               if ((appointment.address ?? '').isNotEmpty)
                 Text('Direccion: ${appointment.address}'),
               const SizedBox(height: 12),
-              if (editable) Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _canEditAppointment
-                          ? () {
-                              Navigator.pop(context);
-                              _reprogramAppointment(appointment);
-                            }
-                          : null,
-                      child: const Text('Reprogramar'),
+              if (editable || canConfirm || canFinalize)
+                Column(
+                  children: [
+                    if (canConfirm || canFinalize)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _canEditAppointment
+                              ? () {
+                                  Navigator.pop(context);
+                                  _setAppointmentStatus(
+                                    appointment,
+                                    canConfirm ? 'CONFIRMADA' : 'COMPLETADA',
+                                  );
+                                }
+                              : null,
+                          child: Text(canConfirm ? 'Confirmar' : 'Marcar como finalizada'),
+                        ),
+                      ),
+                    if (canConfirm || canFinalize) const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _canEditAppointment
+                                ? () {
+                                    Navigator.pop(context);
+                                    _reprogramAppointment(appointment);
+                                  }
+                                : null,
+                            child: const Text('Reprogramar'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _canCancelAppointment
+                                ? () {
+                                    Navigator.pop(context);
+                                    _cancelAppointment(appointment);
+                                  }
+                                : null,
+                            child: const Text('Cancelar'),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _canCancelAppointment
-                          ? () {
-                              Navigator.pop(context);
-                              _cancelAppointment(appointment);
-                            }
-                          : null,
-                      child: const Text('Cancelar'),
-                    ),
-                  ),
-                ],
-              ) else
+                  ],
+                )
+              else
                 const Text('Reserva en solo lectura.'),
             ],
           ),
@@ -866,7 +943,7 @@ class _CitasPageState extends State<CitasPage> {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _nextTenDays.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     final day = _nextTenDays[index];
                     final dayValue = _formatApiDate(day);

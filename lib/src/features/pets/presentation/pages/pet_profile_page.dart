@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pethome_app/src/core/network/api_client.dart';
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
+import 'package:pethome_app/src/features/pets/presentation/pages/clinical_history_page.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/pet_addresses_page.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/pet_history_page.dart';
 
@@ -128,6 +129,23 @@ class _PetProfilePageState extends State<PetProfilePage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              _AccessCard(
+                title: 'Ver historial clínico',
+                countLabel: '${pet.name} en clínica',
+                color: Colors.green,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ClinicalHistoryPage(
+                        petId: pet.id,
+                        petName: pet.name,
+                        petsService: widget.petsService,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           );

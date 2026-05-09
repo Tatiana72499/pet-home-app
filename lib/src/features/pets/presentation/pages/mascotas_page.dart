@@ -8,6 +8,7 @@ import 'package:pethome_app/src/features/appointments/presentation/pages/citas_p
 import 'package:pethome_app/src/core/network/api_client.dart';
 import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
+import 'package:pethome_app/src/features/pets/presentation/pages/clinical_history_page.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/pet_profile_page.dart';
 
 class MascotasPage extends StatefulWidget {
@@ -516,6 +517,18 @@ class _MascotasPageState extends State<MascotasPage> {
     );
   }
 
+  void _showClinicalHistory(Pet pet) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ClinicalHistoryPage(
+          petId: pet.id,
+          petName: pet.name,
+          petsService: widget.clientService,
+        ),
+      ),
+    );
+  }
+
   void _debugPermissions() {
     if (!kDebugMode) return;
     debugPrint(
@@ -603,6 +616,7 @@ class _MascotasPageState extends State<MascotasPage> {
                     (pet) => _PetCard(
                       pet: pet,
                       onTap: () => _showPetDetail(pet),
+                      onViewClinicalHistory: () => _showClinicalHistory(pet),
                       onEdit: _hasEditPermission ? () => _startEdit(pet) : null,
                       onDelete:
                           _hasDeletePermission ? () => _deletePet(pet) : null,
@@ -952,12 +966,14 @@ class _PetCard extends StatelessWidget {
   const _PetCard({
     required this.pet,
     this.onTap,
+    this.onViewClinicalHistory,
     this.onEdit,
     this.onDelete,
   });
 
   final Pet pet;
   final VoidCallback? onTap;
+  final VoidCallback? onViewClinicalHistory;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -979,6 +995,12 @@ class _PetCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(pet.sex ?? ''),
+            if (onViewClinicalHistory != null)
+              IconButton(
+                icon: const Icon(Icons.medical_services_outlined, color: Colors.green),
+                onPressed: onViewClinicalHistory,
+                tooltip: 'Historial clínico',
+              ),
             if (onEdit != null)
               IconButton(
                 icon: const Icon(Icons.edit, color: Color(0xFF6A11CB)),

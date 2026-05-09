@@ -45,7 +45,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
           backgroundColor: Colors.white,
         ),
         body: Consumer<ChatbotController>(
-          builder: (_, chatbot, __) {
+          builder: (_, chatbot, _) {
             _scrollToBottom();
 
             return Column(

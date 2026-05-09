@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pethome_app/src/core/network/api_client.dart';
 import 'package:pethome_app/src/features/auth/data/auth_service.dart';
+import 'package:pethome_app/src/features/pets/models/clinical_history.dart';
 
 class PetsService {
   PetsService({
@@ -16,6 +17,8 @@ class PetsService {
   final AuthService _authService;
   final http.Client _client;
   final ApiClient _apiClient;
+
+  String get baseUrl => _authService.baseUrl;
 
   Future<List<PetSpecies>> getSpecies() async {
     final data = await _getCatalogListWithFallback(
@@ -141,6 +144,12 @@ class PetsService {
     );
     final decoded = _extractJsonMapOrThrow(response);
     return PetHistoryData.fromJson(decoded);
+  }
+
+  Future<ClinicalHistory> getClinicalHistory(int petId) async {
+    final response = await _catalogGet('/api/gestion/clinica/mascotas/$petId/historial/');
+    final decoded = _extractJsonMapOrThrow(response);
+    return ClinicalHistory.fromJson(decoded);
   }
 
   Future<void> createPet(CreatePetRequest request) async {
