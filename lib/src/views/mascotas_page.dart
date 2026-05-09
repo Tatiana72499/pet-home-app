@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/client_service.dart';
+import 'historial_clinico_page.dart';
 
 class MascotasPage extends StatefulWidget {
   const MascotasPage({super.key, required this.clientService});
@@ -174,7 +175,10 @@ class _MascotasPageState extends State<MascotasPage> {
                 if (_pets.isEmpty)
                   const _EmptyState(text: 'Aun no tienes mascotas registradas.')
                 else
-                  ..._pets.map((pet) => _PetCard(pet: pet)),
+                  ..._pets.map((pet) => _PetCard(
+                        pet: pet,
+                        clientService: widget.clientService,
+                      )),
               ],
             ),
           );
@@ -333,24 +337,64 @@ class _MascotasPageState extends State<MascotasPage> {
 }
 
 class _PetCard extends StatelessWidget {
-  const _PetCard({required this.pet});
+  const _PetCard({
+    required this.pet,
+    required this.clientService,
+  });
 
   final Pet pet;
+  final ClientService clientService;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Colors.orange,
-          child: Icon(Icons.pets, color: Colors.white),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: ListTile(
+          leading: const CircleAvatar(
+            backgroundColor: Colors.orange,
+            child: Icon(Icons.pets, color: Colors.white),
+          ),
+          title: Text(pet.name),
+          subtitle: Text(
+            '${pet.speciesName}${pet.breedName == null ? '' : ' - ${pet.breedName}'}',
+          ),
+          trailing: SizedBox(
+            width: 120,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(pet.sex ?? '', style: const TextStyle(fontSize: 12)),
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: 'Ver historial clínico',
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.history,
+                      color: Color(0xFF6A11CB),
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => HistorialClinicoPage(
+                            petId: pet.id,
+                            petName: pet.name,
+                            clientService: clientService,
+                          ),
+                        ),
+                      );
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        title: Text(pet.name),
-        subtitle: Text(
-          '${pet.speciesName}${pet.breedName == null ? '' : ' - ${pet.breedName}'}',
-        ),
-        trailing: Text(pet.sex ?? ''),
       ),
     );
   }

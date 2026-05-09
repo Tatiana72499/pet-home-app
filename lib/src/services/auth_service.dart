@@ -9,8 +9,6 @@ import '../models/auth_user.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-final baseUrl = dotenv.env['API_URL'];
-
 
 
 class AuthService {
@@ -27,6 +25,11 @@ class AuthService {
   final http.Client _client;
 
   String get baseUrl {
+    final envUrl = dotenv.env['API_URL'];
+    if (envUrl != null && envUrl.isNotEmpty) {
+      return envUrl;
+    }
+
     if (kIsWeb) {
       return 'http://127.0.0.1:8000';
     }

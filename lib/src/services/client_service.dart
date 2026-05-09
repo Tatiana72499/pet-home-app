@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'auth_service.dart';
+import '../models/clinical_history.dart';
 
 class ClientService {
   ClientService({
@@ -13,6 +14,8 @@ class ClientService {
 
   final AuthService _authService;
   final http.Client _client;
+
+  String get baseUrl => _authService.baseUrl;
 
   Future<List<PetSpecies>> getSpecies() async {
     final data = await _getList('/api/gestion/clientes/especies/');
@@ -84,6 +87,22 @@ class ClientService {
       path: '/api/gestion/servicios/citas/$id/',
       body: request.toJson(),
     );
+  }
+
+  Future<void> cancelAppointment(int id) async {
+    await _send(
+      method: 'PATCH',
+      path: '/api/gestion/servicios/citas/$id/estado/',
+      body: {'estado': 'CANCELADA'},
+    );
+  }
+
+  Future<ClinicalHistory> getClinicalHistory(int petId) async {
+    final response = await _send(
+      method: 'GET',
+      path: '/api/gestion/clinica/mascotas/$petId/historial/',
+    );
+    return ClinicalHistory.fromJson(_decode(response) as Map<String, dynamic>);
   }
 
   Future<List<Map<String, dynamic>>> _getList(String path) async {
@@ -164,7 +183,7 @@ class PetSpecies {
 
   factory PetSpecies.fromJson(Map<String, dynamic> json) {
     return PetSpecies(
-      id: json['id_especie'] as int,
+      id: _parseInt(json['id_especie']),
       name: json['nombre'] as String,
     );
   }
@@ -179,9 +198,9 @@ class PetBreed {
 
   factory PetBreed.fromJson(Map<String, dynamic> json) {
     return PetBreed(
-      id: json['id_raza'] as int,
+      id: _parseInt(json['id_raza']),
       name: json['nombre'] as String,
-      speciesId: json['especie'] as int,
+      speciesId: _parseInt(json['especie']),
     );
   }
 }
@@ -203,7 +222,7 @@ class Pet {
 
   factory Pet.fromJson(Map<String, dynamic> json) {
     return Pet(
-      id: json['id_mascota'] as int,
+      id: _parseInt(json['id_mascota']),
       name: json['nombre'] as String? ?? '',
       speciesName: json['especie_nombre'] as String? ?? 'Especie',
       breedName: json['raza_nombre'] as String?,
@@ -266,10 +285,10 @@ class ServiceItem {
 
   factory ServiceItem.fromJson(Map<String, dynamic> json) {
     return ServiceItem(
-      id: json['id_servicio'] as int,
+      id: _parseInt(json['id_servicio']),
       name: json['nombre'] as String? ?? '',
-      active: json['estado'] as bool? ?? false,
-      homeAvailable: json['disponible_domicilio'] as bool? ?? false,
+      active: _parseBool(json['estado']),
+      homeAvailable: _parseBool(json['disponible_domicilio']),
     );
   }
 }
@@ -293,12 +312,12 @@ class ServicePrice {
 
   factory ServicePrice.fromJson(Map<String, dynamic> json) {
     return ServicePrice(
-      id: json['id_precio'] as int,
-      serviceId: json['servicio'] as int,
+      id: _parseInt(json['id_precio']),
+      serviceId: _parseInt(json['servicio']),
       variation: json['variacion'] as String? ?? '',
       modality: json['modalidad'] as String? ?? 'CLINICA',
       price: json['precio'].toString(),
-      active: json['estado'] as bool? ?? false,
+      active: _parseBool(json['estado']),
     );
   }
 }
@@ -334,10 +353,10 @@ class Appointment {
 
   factory Appointment.fromJson(Map<String, dynamic> json) {
     return Appointment(
-      id: json['id_cita'] as int,
-      petId: json['mascota'] as int,
-      serviceId: json['servicio'] as int,
-      priceId: json['precio_servicio'] as int,
+      id: _parseInt(json['id_cita']),
+      petId: _parseInt(json['mascota']),
+      serviceId: _parseInt(json['servicio']),
+      priceId: _parseInt(json['precio_servicio']),
       petName: json['mascota_nombre'] as String? ?? 'Mascota',
       serviceName: json['servicio_nombre'] as String? ?? 'Servicio',
       date: json['fecha_programada'] as String? ?? '',
@@ -376,8 +395,8 @@ class ClientProfile {
 
   factory ClientProfile.fromJson(Map<String, dynamic> json) {
     return ClientProfile(
-      id: json['id_perfil'] as int,
-      userId: json['usuario'] as int,
+      id: _parseInt(json['id_perfil']),
+      userId: _parseInt(json['usuario']),
       email: json['correo'] as String? ?? '',
       name: json['nombre'] as String? ?? '',
       phone: json['telefono'] as String?,
@@ -445,4 +464,25 @@ class ClientException implements Exception {
 
   @override
   String toString() => message;
+}
+
+int _parseInt(Object? value) {
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is num) return value.toInt();
+  if (value is String) return int.parse(value);
+  throw FormatException('No se pudo convertir a int: $value');
+}
+
+bool _parseBool(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.trim().toUpperCase();
+    return normalized == 'TRUE' ||
+        normalized == '1' ||
+        normalized == 'ACTIVO' ||
+        normalized == 'ACTIVE';
+  }
+  return false;
 }

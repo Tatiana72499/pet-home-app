@@ -12,12 +12,19 @@ class AuthUser {
   final bool isActive;
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
-    final role = (json['role'] ?? json['rol']) as Map<String, dynamic>?;
+    final role = json['role'] ?? json['rol'];
+    String roleNombre = 'Sin rol';
+
+    if (role is Map<String, dynamic>) {
+      roleNombre = role['nombre'] as String? ?? 'Sin rol';
+    } else if (role is String) {
+      roleNombre = role;
+    }
 
     return AuthUser(
       idUsuario: json['id_usuario'] as int,
       correo: json['correo'] as String,
-      roleNombre: role?['nombre'] as String? ?? 'Sin rol',
+      roleNombre: roleNombre,
       isActive: json['is_active'] as bool? ?? false,
     );
   }

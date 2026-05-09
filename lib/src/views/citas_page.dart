@@ -64,9 +64,28 @@ class _CitasPageState extends State<CitasPage> {
           (price) =>
               (_selectedServiceId == null ||
                   price.serviceId == _selectedServiceId) &&
-              price.modality == _selectedModality,
+              _normalizeText(price.modality) == _normalizeText(_selectedModality),
         )
         .toList();
+  }
+
+  String _normalizeText(String value) {
+    final normalized = value
+        .trim()
+        .toUpperCase()
+        .replaceAll('Á', 'A')
+        .replaceAll('É', 'E')
+        .replaceAll('Í', 'I')
+        .replaceAll('Ó', 'O')
+        .replaceAll('Ú', 'U')
+        .replaceAll('Ü', 'U');
+
+    if (normalized.contains('DOMICILIO')) return 'DOMICILIO';
+    if (normalized.contains('CONSULTA') || normalized.contains('CLINICA')) {
+      return 'CLINICA';
+    }
+
+    return normalized;
   }
 
   Future<void> _saveAppointment() async {
@@ -141,6 +160,43 @@ class _CitasPageState extends State<CitasPage> {
     _descriptionController.clear();
   }
 
+  Future<void> _cancelAppointment(int appointmentId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar Cita'),
+        content: const Text('¿Estás seguro de que deseas cancelar esta cita?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sí, cancelar'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      await widget.clientService.cancelAppointment(appointmentId);
+      await _loadData();
+      if (!mounted) return;
+      setState(() => _message = 'Cita cancelada correctamente.');
+    } catch (error) {
+      setState(() => _message = 'Error al cancelar: ${error.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -172,28 +228,92 @@ class _CitasPageState extends State<CitasPage> {
               padding: const EdgeInsets.all(16),
               children: [
                 _buildForm(),
+                const SizedBox(height: 24),
+                // Resumen de citas
+                _buildSummary(),
                 const SizedBox(height: 20),
-                Text(
-                  'Reservas registradas',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                if (_appointments.isEmpty)
-                  const _EmptyState(text: 'Aun no tienes reservas.')
-                else
-                  ..._appointments.map(
-                    (appointment) => _AppointmentCard(
-                      appointment: appointment,
-                      onEdit: appointment.status == 'PENDIENTE'
-                          ? () => _startEdit(appointment)
-                          : null,
-                    ),
-                  ),
+                // Citas pendientes
+                _buildCitasByStatus('PENDIENTE', 'En Espera de Confirmación'),
+                _buildCitasByStatus('CONFIRMADA', 'Confirmadas'),
+                _buildCitasByStatus('COMPLETADA', 'Completadas'),
+                _buildCitasByStatus('CANCELADA', 'Canceladas'),
               ],
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSummary() {
+    final pendientes = _appointments.where((c) => c.status == 'PENDIENTE').length;
+    final confirmadas = _appointments.where((c) => c.status == 'CONFIRMADA').length;
+
+    return Card(
+      color: const Color(0xFF6A11CB).withOpacity(0.1),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildStatItem('Total', _appointments.length.toString(), Colors.grey),
+            _buildStatItem('Pendientes', pendientes.toString(), Colors.orange),
+            _buildStatItem('Confirmadas', confirmadas.toString(), Colors.green),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCitasByStatus(String status, String title) {
+    final citasDelEstado = _appointments.where((c) => c.status == status).toList();
+
+    if (citasDelEstado.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$title (${citasDelEstado.length})',
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF6A11CB),
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...citasDelEstado.map(
+          (appointment) => _AppointmentCard(
+            appointment: appointment,
+            onEdit: appointment.status == 'PENDIENTE'
+                ? () => _startEdit(appointment)
+                : null,
+            onCancel: appointment.status == 'PENDIENTE'
+                ? () => _cancelAppointment(appointment.id)
+                : null,
+          ),
+        ).toList(),
+        const SizedBox(height: 16),
+      ],
     );
   }
 
@@ -346,32 +466,206 @@ class _CitasPageState extends State<CitasPage> {
 }
 
 class _AppointmentCard extends StatelessWidget {
-  const _AppointmentCard({required this.appointment, this.onEdit});
+  const _AppointmentCard({
+    required this.appointment,
+    this.onEdit,
+    this.onCancel,
+  });
 
   final Appointment appointment;
   final VoidCallback? onEdit;
+  final VoidCallback? onCancel;
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'PENDIENTE':
+        return Colors.orange;
+      case 'CONFIRMADA':
+        return Colors.green;
+      case 'COMPLETADA':
+        return Colors.blue;
+      case 'CANCELADA':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getStatusLabel(String status) {
+    switch (status) {
+      case 'PENDIENTE':
+        return 'Pendiente';
+      case 'CONFIRMADA':
+        return 'Confirmada';
+      case 'COMPLETADA':
+        return 'Completada';
+      case 'CANCELADA':
+        return 'Cancelada';
+      default:
+        return status;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = _getStatusColor(appointment.status);
+    final statusLabel = _getStatusLabel(appointment.status);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Colors.orange,
-          child: Icon(Icons.calendar_today, color: Colors.white),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header con servicio y estado
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    appointment.serviceName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Info row 1: Mascota y Fecha
+            Row(
+              children: [
+                Expanded(
+                  child: _infoItem('🐾', 'Mascota:', appointment.petName),
+                ),
+                Expanded(
+                  child: _infoItem('📅', 'Fecha:', appointment.date),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Info row 2: Hora y Modalidad
+            Row(
+              children: [
+                Expanded(
+                  child: _infoItem('⏰', 'Hora:', appointment.time),
+                ),
+                Expanded(
+                  child: _infoItem(
+                    '📍',
+                    'Modalidad:',
+                    appointment.modality == 'CLINICA' ? 'Clínica' : 'Domicilio',
+                  ),
+                ),
+              ],
+            ),
+            // Dirección si aplica
+            if (appointment.modality == 'DOMICILIO' &&
+                appointment.address != null &&
+                appointment.address!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _infoItem('📬', 'Dirección:', appointment.address!),
+            ],
+            // Descripción si existe
+            if (appointment.description != null &&
+                appointment.description!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _infoItem('📝', 'Descripción:', appointment.description!),
+            ],
+            // Botones editar y cancelar si es pendiente
+            if (onEdit != null || onCancel != null) ...[
+              const SizedBox(height: 12),
+              if (onEdit != null && onCancel != null)
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.edit, size: 16),
+                        label: const Text('Editar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6A11CB),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: onEdit,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.close, size: 16),
+                        label: const Text('Cancelar'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade400,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: onCancel,
+                      ),
+                    ),
+                  ],
+                )
+              else if (onEdit != null)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Editar Cita'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6A11CB),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: onEdit,
+                  ),
+                ),
+            ],
+          ],
         ),
-        title: Text('${appointment.serviceName} - ${appointment.petName}'),
-        subtitle: Text(
-          '${appointment.date} ${appointment.time}\n${appointment.modality} - ${appointment.status}',
-        ),
-        isThreeLine: true,
-        trailing: onEdit == null
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.edit, color: Color(0xFF6A11CB)),
-                onPressed: onEdit,
-              ),
       ),
+    );
+  }
+
+  Widget _infoItem(String emoji, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$emoji $label',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
