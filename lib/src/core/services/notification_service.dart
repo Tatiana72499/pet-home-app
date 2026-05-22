@@ -8,8 +8,16 @@ class NotificationService {
   NotificationService({required ApiClient apiClient}) : _apiClient = apiClient;
 
   final ApiClient _apiClient;
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+
+  FirebaseMessaging? get _safeMessaging {
+    if (kIsWeb) {
+      return null;
+    }
+
+    return _messaging ??= FirebaseMessaging.instance;
+  }
 
   static final AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'pethome_high_importance_channel', // id
@@ -19,8 +27,20 @@ class NotificationService {
   );
 
   Future<void> initialize() async {
+    if (kIsWeb) {
+      if (kDebugMode) {
+        print('Notificaciones deshabilitadas en web');
+      }
+      return;
+    }
+
+    final messaging = _safeMessaging;
+    if (messaging == null) {
+      return;
+    }
+
     // 1. Solicitar permisos (especialmente importante en iOS)
-    NotificationSettings settings = await _messaging.requestPermission(
+    NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
@@ -48,7 +68,12 @@ class NotificationService {
 
   Future<void> _registerDeviceToken() async {
     try {
-      String? token = await _messaging.getToken();
+      final messaging = _safeMessaging;
+      if (messaging == null) {
+        return;
+      }
+
+      String? token = await messaging.getToken();
       if (token != null) {
         if (kDebugMode) {
           print('Token FCM Móvil: $token');
@@ -143,7 +168,12 @@ class NotificationService {
   /// Desactiva el dispositivo en el backend (útil para el logout)
   Future<void> uninitialize() async {
     try {
-      String? token = await _messaging.getToken();
+      final messaging = _safeMessaging;
+      if (messaging == null) {
+        return;
+      }
+
+      String? token = await messaging.getToken();
       if (token != null) {
         await _apiClient.send(
           method: 'POST',
