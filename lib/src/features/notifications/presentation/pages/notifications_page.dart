@@ -135,7 +135,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         if (link.contains('/citas/')) {
                           final parts = link.split('/');
                           final id = parts.last;
-                          print('Navegando a cita ID: $id');
+                          ('Navegando a cita ID: $id');
                           // Navigator.push(context, MaterialPageRoute(...));
                         }
                       }
