@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/pages/carrito_temporal_page.dart';
 import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
 import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/data/catalogo_service.dart';
@@ -185,6 +186,20 @@ class _DashboardPageState extends State<DashboardPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _openCarritoTemporal,
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    label: const Text('Mi carrito temporal'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: petPurple,
+                      side: const BorderSide(color: petPurple),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   const CatalogoSectionTitle(title: 'Tus opciones'),
                   const SizedBox(height: 10),
@@ -240,6 +255,12 @@ class _DashboardPageState extends State<DashboardPage> {
   void _showProductDetail(CatalogoProducto product) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ProductDetailPage(product: product)),
+    );
+  }
+
+  void _openCarritoTemporal() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const CarritoTemporalPage()),
     );
   }
 }

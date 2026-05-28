@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/pages/carrito_temporal_page.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/widgets/add_producto_carrito_button.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/models/catalogo_producto.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/widgets/catalogo_widgets.dart';
 
@@ -25,6 +27,17 @@ class ProductDetailPage extends StatelessWidget {
           'Detalle del producto',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Mi carrito',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CarritoTemporalPage()),
+              );
+            },
+            icon: const Icon(Icons.shopping_cart_outlined),
+          ),
+        ],
         flexibleSpace: const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -196,6 +209,8 @@ class ProductDetailPage extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 10),
+            AddProductoCarritoButton(productoId: product.idProducto),
           ],
         ),
       ),

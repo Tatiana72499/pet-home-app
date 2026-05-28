@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/pages/carrito_temporal_page.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/data/catalogo_service.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/models/catalogo_producto.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/presentation/pages/product_detail_page.dart';
@@ -77,6 +78,17 @@ class _CatalogoPageState extends State<CatalogoPage> {
           'Catalogo PetHome',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Mi carrito',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CarritoTemporalPage()),
+              );
+            },
+            icon: const Icon(Icons.shopping_cart_outlined),
+          ),
+        ],
         flexibleSpace: const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
