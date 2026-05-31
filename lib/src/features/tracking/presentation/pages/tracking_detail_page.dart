@@ -313,7 +313,7 @@ class _TrackingDetailPageState extends State<TrackingDetailPage> {
                 style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
               ),
             ),
-            _StatusChip(status: item.estadoActual),
+            _StatusChip(status: _displaySeguimientoStatus(item)),
           ],
         ),
         const SizedBox(height: 4),
@@ -395,6 +395,14 @@ class _TrackingDetailPageState extends State<TrackingDetailPage> {
       return item.cita!.servicio!.nombre;
     }
     return _toLabel(item.tipoSeguimiento);
+  }
+
+  String _displaySeguimientoStatus(SeguimientoItem item) {
+    final citaEstado = item.cita?.estado.trim();
+    if (citaEstado != null && citaEstado.isNotEmpty) {
+      return citaEstado;
+    }
+    return item.estadoActual;
   }
 }
 

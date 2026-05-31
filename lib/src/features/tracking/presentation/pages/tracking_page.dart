@@ -54,14 +54,83 @@ class TrackingPage extends StatelessWidget {
   }
 }
 
-class _TrackingPageView extends StatelessWidget {
+class _TrackingPageView extends StatefulWidget {
   const _TrackingPageView({required this.authService});
 
   final AuthService authService;
 
+  @override
+  State<_TrackingPageView> createState() => _TrackingPageViewState();
+}
+
+class _TrackingPageViewState extends State<_TrackingPageView> {
   static const _purple = Color(0xFF6A11CB);
   //static const _softPurple = Color(0xFFF2EAF7);
   static const _orange = Color(0xFFFF9800);
+
+  Future<void> _openFiltersSheet({
+    required TrackingController controller,
+    required bool isSeguimientos,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              12 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              child: _FilterCard(
+                isSeguimientos: isSeguimientos,
+                search: controller.search,
+                onSearchChanged: controller.setSearch,
+                seguimientoTipo: controller.seguimientoTipo,
+                seguimientoEstado: controller.seguimientoEstado,
+                onSeguimientoTipoChanged: controller.setSeguimientoTipo,
+                onSeguimientoEstadoChanged: controller.setSeguimientoEstado,
+                pedidoEstado: controller.pedidoEstado,
+                pedidoTipoEntrega: controller.pedidoTipoEntrega,
+                onPedidoEstadoChanged: controller.setPedidoEstado,
+                onPedidoTipoEntregaChanged: controller.setPedidoTipoEntrega,
+                seguimientoFechaDesde: controller.seguimientoFechaDesde,
+                seguimientoFechaHasta: controller.seguimientoFechaHasta,
+                pedidoFechaDesde: controller.pedidoFechaDesde,
+                pedidoFechaHasta: controller.pedidoFechaHasta,
+                onSeguimientoFechaDesdeChanged: controller.setSeguimientoDesde,
+                onSeguimientoFechaHastaChanged: controller.setSeguimientoHasta,
+                onPedidoFechaDesdeChanged: controller.setPedidoDesde,
+                onPedidoFechaHastaChanged: controller.setPedidoHasta,
+                onApply: () {
+                  if (isSeguimientos) {
+                    controller.applySeguimientosFilters();
+                  } else {
+                    controller.applyPedidosFilters();
+                  }
+                  Navigator.of(context).pop();
+                },
+                onClear: () {
+                  if (isSeguimientos) {
+                    controller.clearSeguimientosFilters();
+                  } else {
+                    controller.clearPedidosFilters();
+                  }
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,8 +166,6 @@ class _TrackingPageView extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 35,
                                 fontWeight: FontWeight.w900,
-                                decoration: TextDecoration.underline,
-                                decorationThickness: 2,
                               ),
                             ),
                             SizedBox(height: 2),
@@ -139,34 +206,21 @@ class _TrackingPageView extends StatelessWidget {
                     onChanged: controller.setSection,
                   ),
                   const SizedBox(height: 10),
-                  _FilterCard(
-                    isSeguimientos: isSeguimientos,
-                    search: controller.search,
-                    onSearchChanged: controller.setSearch,
-                    seguimientoTipo: controller.seguimientoTipo,
-                    seguimientoEstado: controller.seguimientoEstado,
-                    onSeguimientoTipoChanged: controller.setSeguimientoTipo,
-                    onSeguimientoEstadoChanged: controller.setSeguimientoEstado,
-                    pedidoEstado: controller.pedidoEstado,
-                    pedidoTipoEntrega: controller.pedidoTipoEntrega,
-                    onPedidoEstadoChanged: controller.setPedidoEstado,
-                    onPedidoTipoEntregaChanged: controller.setPedidoTipoEntrega,
-                    seguimientoFechaDesde: controller.seguimientoFechaDesde,
-                    seguimientoFechaHasta: controller.seguimientoFechaHasta,
-                    pedidoFechaDesde: controller.pedidoFechaDesde,
-                    pedidoFechaHasta: controller.pedidoFechaHasta,
-                    onSeguimientoFechaDesdeChanged:
-                        controller.setSeguimientoDesde,
-                    onSeguimientoFechaHastaChanged:
-                        controller.setSeguimientoHasta,
-                    onPedidoFechaDesdeChanged: controller.setPedidoDesde,
-                    onPedidoFechaHastaChanged: controller.setPedidoHasta,
-                    onApply: isSeguimientos
-                        ? controller.applySeguimientosFilters
-                        : controller.applyPedidosFilters,
-                    onClear: isSeguimientos
-                        ? controller.clearSeguimientosFilters
-                        : controller.clearPedidosFilters,
+                  OutlinedButton.icon(
+                    onPressed: () => _openFiltersSheet(
+                      controller: controller,
+                      isSeguimientos: isSeguimientos,
+                    ),
+                    icon: const Icon(Icons.tune),
+                    label: const Text('Filtros'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _purple,
+                      side: const BorderSide(color: _purple),
+                      minimumSize: const Size.fromHeight(44),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -266,7 +320,7 @@ class _TrackingPageView extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => TrackingDetailPage.pedido(
-                    authService: authService,
+                    authService: widget.authService,
                     idPedido: item.idPedido,
                   ),
                 ),
@@ -283,7 +337,7 @@ class _TrackingPageView extends StatelessWidget {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => TrackingDetailPage.pedido(
-            authService: authService,
+            authService: widget.authService,
             idPedido: item.pedido!.idPedido,
           ),
         ),
@@ -294,7 +348,7 @@ class _TrackingPageView extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TrackingDetailPage.seguimiento(
-          authService: authService,
+          authService: widget.authService,
           idSeguimiento: item.idSeguimiento,
         ),
       ),
@@ -302,10 +356,10 @@ class _TrackingPageView extends StatelessWidget {
   }
 
   Future<void> _goToLogin(BuildContext context) async {
-    await authService.logout();
+    await widget.authService.logout();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => LoginPage(authService: authService)),
+      MaterialPageRoute(builder: (_) => LoginPage(authService: widget.authService)),
       (route) => false,
     );
   }
@@ -621,7 +675,7 @@ class _SeguimientoCard extends StatelessWidget {
     final title = _titleFromSeguimiento(item);
     final subtitle = _subtitleFromSeguimiento(item);
     final amountLabel = item.pedido == null ? null : 'Bs ${item.pedido!.total}';
-    final status = item.estadoActual;
+    final status = _displayStatus(item);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -718,6 +772,14 @@ class _SeguimientoCard extends StatelessWidget {
     ].join(' · ');
     if (amountLabel == null) return left;
     return '$left · $amountLabel';
+  }
+
+  String _displayStatus(SeguimientoItem item) {
+    final citaEstado = item.cita?.estado.trim();
+    if (citaEstado != null && citaEstado.isNotEmpty) {
+      return citaEstado;
+    }
+    return item.estadoActual;
   }
 }
 

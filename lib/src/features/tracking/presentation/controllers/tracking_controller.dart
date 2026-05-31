@@ -213,7 +213,11 @@ class TrackingController extends ChangeNotifier {
           fechaHasta: seguimientoFechaHasta,
         ),
       );
-      _seguimientos = items.where((item) => item.visibleCliente).toList(growable: false);
+      final sorted = items.where((item) => item.visibleCliente).toList();
+      sorted.sort(
+        (a, b) => _parseIsoDate(b.fechaHora).compareTo(_parseIsoDate(a.fechaHora)),
+      );
+      _seguimientos = sorted;
     } on ClientException catch (error) {
       _seguimientosErrorCode = error.statusCode;
       _seguimientosError = _mapErrorMessage(
@@ -254,6 +258,10 @@ class TrackingController extends ChangeNotifier {
           fechaHasta: pedidoFechaHasta,
         ),
       );
+      _pedidos = _pedidos.toList()
+        ..sort(
+          (a, b) => _parseIsoDate(b.fechaPedido).compareTo(_parseIsoDate(a.fechaPedido)),
+        );
     } on ClientException catch (error) {
       _pedidosErrorCode = error.statusCode;
       _pedidosError = _mapErrorMessage(
@@ -336,5 +344,9 @@ class TrackingController extends ChangeNotifier {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return value;
     return '${trimmed[0].toUpperCase()}${trimmed.substring(1)}';
+  }
+
+  static DateTime _parseIsoDate(String raw) {
+    return DateTime.tryParse(raw)?.toUtc() ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   }
 }

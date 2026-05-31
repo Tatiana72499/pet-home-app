@@ -27,7 +27,25 @@ class AuthService {
   String get baseUrl {
     final envBaseUrl = dotenv.env['API_URL'];
     if (envBaseUrl != null && envBaseUrl.trim().isNotEmpty) {
-      return envBaseUrl.trim();
+      final configuredBaseUrl = envBaseUrl.trim();
+
+      if (kIsWeb) {
+        if (configuredBaseUrl.contains('10.0.2.2')) {
+          return configuredBaseUrl.replaceAll('10.0.2.2', '127.0.0.1');
+        }
+
+        return configuredBaseUrl;
+      }
+
+      if (Platform.isAndroid &&
+          (configuredBaseUrl.contains('127.0.0.1') ||
+              configuredBaseUrl.contains('localhost'))) {
+        return configuredBaseUrl
+            .replaceAll('127.0.0.1', '10.0.2.2')
+            .replaceAll('localhost', '10.0.2.2');
+      }
+
+      return configuredBaseUrl;
     }
 
     if (kIsWeb) {

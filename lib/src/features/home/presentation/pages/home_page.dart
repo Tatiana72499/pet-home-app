@@ -6,6 +6,7 @@ import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
 import 'package:pethome_app/src/features/auth/presentation/pages/login_page.dart';
 import 'package:pethome_app/src/features/chatbot/presentation/widgets/chat_fab.dart';
 import 'package:pethome_app/src/features/dashboard/presentation/pages/dashboard_page.dart';
+import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/data/catalogo_service.dart';
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/mascotas_page.dart';
 import 'package:pethome_app/src/features/profile/data/profile_service.dart';
@@ -42,6 +43,9 @@ class _HomePageState extends State<HomePage> {
     authService: widget.authService,
   );
   late final TrackingService _trackingService = TrackingService(
+    authService: widget.authService,
+  );
+  late final CatalogoService _catalogoService = CatalogoService(
     authService: widget.authService,
   );
   int _currentIndex = 0;
@@ -177,6 +181,7 @@ class _HomePageState extends State<HomePage> {
                 user: user,
                 petsService: _petsService,
                 appointmentsService: _appointmentsService,
+                catalogoService: _catalogoService,
               ),
               icon: Icons.home,
               label: 'Inicio',
