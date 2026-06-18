@@ -16,7 +16,7 @@ class AgregarServicioSheet extends StatefulWidget {
 }
 
 class _AgregarServicioSheetState extends State<AgregarServicioSheet> {
-  late Future<_SheetData> _initialFuture = _loadInitial();
+  late final Future<_SheetData> _initialFuture = _loadInitial();
 
   int? _servicioId;
   int? _precioServicioId;

@@ -4,6 +4,7 @@ import 'package:pethome_app/src/core/widgets/location_coordinate_picker.dart';
 import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
 import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/pages/checkout_page.dart';
 
 class CitasPage extends StatefulWidget {
   const CitasPage({
@@ -599,6 +600,57 @@ class _CitasPageState extends State<CitasPage> {
               if ((appointment.address ?? '').isNotEmpty)
                 Text('Direccion: ${appointment.address}'),
               const SizedBox(height: 12),
+              if (appointment.status == 'PENDIENTE') ...[
+                Builder(
+                  builder: (context) {
+                    ServicePrice? matchingPrice;
+                    for (final price in _prices) {
+                      if (price.id == appointment.priceId) {
+                        matchingPrice = price;
+                        break;
+                      }
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context); // Cerrar modal de detalles
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CheckoutPage(
+                                  mode: CheckoutMode.CITA_SERVICIO,
+                                  citaData: {
+                                    'id': appointment.id,
+                                    'serviceName': appointment.serviceName,
+                                    'petName': appointment.petName,
+                                    'date': appointment.date,
+                                    'time': appointment.time,
+                                    'modality': appointment.modality,
+                                    'address': appointment.address,
+                                    'price': matchingPrice?.price ?? '0.00',
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.payment_rounded),
+                          label: const Text('Proceder al Pago'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF6D28D9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                ),
+              ],
               if (editable || canConfirm || canFinalize)
                 Column(
                   children: [

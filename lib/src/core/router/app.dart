@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
 
 import 'package:pethome_app/src/features/auth/data/auth_service.dart';
 import 'package:pethome_app/src/features/auth/presentation/pages/login_page.dart';
 import 'package:pethome_app/src/features/home/presentation/pages/home_page.dart';
 import 'package:pethome_app/src/features/tracking/presentation/pages/tracking_page.dart';
+import 'package:pethome_app/src/core/features/compras/providers/carrito_provider.dart';
+import 'package:pethome_app/src/core/features/compras/data/services/carrito_service.dart';
+import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
+import 'package:pethome_app/src/features/pets/data/pets_service.dart';
 
 class PetHomeApp extends StatelessWidget {
   const PetHomeApp({super.key});
@@ -22,12 +27,24 @@ class PetHomeApp extends StatelessWidget {
       ),
     );
 
-    return MaterialApp(
-      title: 'PetHome',
-      debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
+    final authService = AuthService();
+
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<CarritoProvider>(
+          create: (_) => CarritoProvider(
+            carritoService: CarritoService(authService: authService),
+            appointmentsService: AppointmentsService(authService: authService),
+            petsService: PetsService(authService: authService),
+          )..loadCarrito(),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'PetHome',
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
@@ -109,6 +126,7 @@ class PetHomeApp extends StatelessWidget {
       },
 
       home: const SessionGate(),
+      ),
     );
   }
 }

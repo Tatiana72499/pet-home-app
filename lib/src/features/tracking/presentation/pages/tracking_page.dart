@@ -65,7 +65,7 @@ class _TrackingPageView extends StatefulWidget {
 
 class _TrackingPageViewState extends State<_TrackingPageView> {
   static const _purple = Color(0xFF6A11CB);
-  static const _softPurple = Color(0xFFF2EAF7);
+  //static const _softPurple = Color(0xFFF2EAF7);
   static const _orange = Color(0xFFFF9800);
 
   Future<void> _openFiltersSheet({

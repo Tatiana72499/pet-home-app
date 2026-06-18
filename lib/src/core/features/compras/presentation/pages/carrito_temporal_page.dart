@@ -1,30 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:pethome_app/src/core/features/compras/data/services/carrito_service.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/widgets/agregar_servicio_sheet.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/widgets/carrito_item_card.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/widgets/carrito_total_card.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/widgets/empty_cart_widget.dart';
 import 'package:pethome_app/src/core/features/compras/providers/carrito_provider.dart';
 import 'package:pethome_app/src/core/widgets/notification_bell.dart';
-import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
-import 'package:pethome_app/src/features/auth/data/auth_service.dart';
-import 'package:pethome_app/src/features/pets/data/pets_service.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/pages/checkout_page.dart';
 
 class CarritoTemporalPage extends StatelessWidget {
   const CarritoTemporalPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-    return ChangeNotifierProvider<CarritoProvider>(
-      create: (_) => CarritoProvider(
-        carritoService: CarritoService(authService: authService),
-        appointmentsService: AppointmentsService(authService: authService),
-        petsService: PetsService(authService: authService),
-      )..loadCarrito(),
-      child: const _CarritoTemporalView(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<CarritoProvider>(context, listen: false).loadCarrito();
+    });
+    return const _CarritoTemporalView();
   }
 }
 
@@ -209,11 +201,34 @@ class _CarritoTemporalView extends StatelessWidget {
                             ),
                           ),
                         ),
-                      const SizedBox(height: 10),
                       CarritoTotalCard(
                         subtotalEstimado: provider.carrito.subtotalEstimado,
                         totalEstimado: provider.carrito.totalEstimado,
                       ),
+                      if (provider.carrito.detalles.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const CheckoutPage(mode: CheckoutMode.PEDIDO_MOVIL),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.payment_rounded),
+                            label: const Text('Realizar Pedido'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF6D28D9),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Row(
                         children: [

@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:pethome_app/src/core/features/compras/data/services/carrito_service.dart';
+import 'package:provider/provider.dart';
 import 'package:pethome_app/src/core/features/compras/providers/carrito_provider.dart';
-import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
-import 'package:pethome_app/src/features/auth/data/auth_service.dart';
-import 'package:pethome_app/src/features/pets/data/pets_service.dart';
 
 class AddProductoCarritoButton extends StatefulWidget {
   const AddProductoCarritoButton({
@@ -30,12 +27,7 @@ class _AddProductoCarritoButtonState extends State<AddProductoCarritoButton> {
 
     setState(() => _isAdding = true);
 
-    final authService = AuthService();
-    final provider = CarritoProvider(
-      carritoService: CarritoService(authService: authService),
-      appointmentsService: AppointmentsService(authService: authService),
-      petsService: PetsService(authService: authService),
-    );
+    final provider = Provider.of<CarritoProvider>(context, listen: false);
 
     final ok = await provider.addProducto(
       productoId: widget.productoId,
