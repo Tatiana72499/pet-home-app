@@ -5,11 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:pethome_app/src/features/auth/data/auth_service.dart';
 
 class ApiClient {
-  ApiClient({
-    required AuthService authService,
-    http.Client? client,
-  })  : _authService = authService,
-        _client = client ?? http.Client();
+  ApiClient({required AuthService authService, http.Client? client})
+    : _authService = authService,
+      _client = client ?? http.Client();
 
   final AuthService _authService;
   final http.Client _client;
@@ -33,14 +31,22 @@ class ApiClient {
     Map<String, dynamic>? body,
   }) async {
     var headers = await _authService.authorizedHeaders();
-    var response =
-        await _request(method: method, path: path, headers: headers, body: body);
+    var response = await _request(
+      method: method,
+      path: path,
+      headers: headers,
+      body: body,
+    );
 
     if (response.statusCode == 401) {
       await _authService.refreshToken();
       headers = await _authService.authorizedHeaders();
-      response =
-          await _request(method: method, path: path, headers: headers, body: body);
+      response = await _request(
+        method: method,
+        path: path,
+        headers: headers,
+        body: body,
+      );
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
