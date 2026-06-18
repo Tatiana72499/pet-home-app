@@ -19,6 +19,8 @@ class PagoService {
     required String tipoReferencia,
     required int referenciaId,
   }) async {
+    print('[PagoService] Iniciando checkout Stripe');
+    print('[PagoService] tipoReferencia=$tipoReferencia referenciaId=$referenciaId');
     final response = await _apiClient.send(
       method: 'POST',
       path: '${_pagosPath}checkout-session/',

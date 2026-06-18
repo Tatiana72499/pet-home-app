@@ -211,6 +211,8 @@ class _CarritoTemporalView extends StatelessWidget {
                           width: double.infinity,
                           child: FilledButton.icon(
                             onPressed: () {
+                              print('[Checkout] Tap en Realizar Pedido');
+                              print('[Checkout] Navegando a CheckoutPage');
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => const CheckoutPage(mode: CheckoutMode.PEDIDO_MOVIL),

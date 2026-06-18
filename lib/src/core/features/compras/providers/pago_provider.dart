@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pethome_app/src/core/features/compras/data/services/pago_service.dart';
 
 class PagoProvider extends ChangeNotifier {
@@ -8,6 +9,7 @@ class PagoProvider extends ChangeNotifier {
   }) : _pagoService = pagoService;
 
   final PagoService _pagoService;
+  final _storage = const FlutterSecureStorage();
 
   bool isLoading = false;
   bool isPolling = false;
@@ -19,6 +21,7 @@ class PagoProvider extends ChangeNotifier {
   Map<String, dynamic>? comprobanteData;
   String? checkoutUrl;
   int? currentPagoId;
+  bool autoConfirmed = false;
 
   Timer? _pollingTimer;
 
@@ -39,6 +42,7 @@ class PagoProvider extends ChangeNotifier {
     comprobanteData = null;
     checkoutUrl = null;
     currentPagoId = null;
+    autoConfirmed = false;
     _pollingTimer?.cancel();
     notifyListeners();
   }
@@ -88,6 +92,7 @@ class PagoProvider extends ChangeNotifier {
     infoMessage = null;
     checkoutUrl = null;
     currentPagoId = null;
+    autoConfirmed = false;
     notifyListeners();
 
     try {
@@ -97,6 +102,24 @@ class PagoProvider extends ChangeNotifier {
       );
       currentPagoId = res['pago_id'] as int?;
       checkoutUrl = res['checkout_url'] as String?;
+      autoConfirmed = res['auto_confirmed'] == true;
+      if (currentPagoId != null) {
+        await _storage.write(key: 'last_pending_pago_id', value: currentPagoId.toString());
+      }
+
+      // Temporal Sprint Demo: Si fue auto-confirmado, cargar comprobante de forma inmediata.
+      if (autoConfirmed && currentPagoId != null) {
+        try {
+          final detail = await _pagoService.getPagoDetail(currentPagoId!);
+          pagoData = detail;
+          final comprobante = detail['comprobante'];
+          if (comprobante != null && comprobante['id_comprobante'] != null) {
+            final idComp = comprobante['id_comprobante'] as int;
+            await cargarComprobante(idComp);
+          }
+        } catch (_) {}
+      }
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -116,6 +139,18 @@ class PagoProvider extends ChangeNotifier {
     }
   }
 
+  /// Restaura el ID de pago pendiente guardado en el almacenamiento seguro.
+  Future<void> restorePendingPaymentId() async {
+    final stored = await _storage.read(key: 'last_pending_pago_id');
+    if (stored != null) {
+      final idPago = int.tryParse(stored);
+      if (idPago != null) {
+        currentPagoId = idPago;
+        notifyListeners();
+      }
+    }
+  }
+
   /// Verifica el estado del pago de forma inmediata (por ejemplo al volver de un deep link).
   Future<void> checkPaymentStatus(
     int idPago, {
@@ -126,10 +161,12 @@ class PagoProvider extends ChangeNotifier {
       final pago = await _pagoService.getPagoDetail(idPago);
       pagoData = pago;
       final estado = pago['estado_pago'] as String?;
+      print('[PagoProvider] Estado actual del pago=$estado');
 
       if (estado == 'PAGADO') {
         _pollingTimer?.cancel();
         isPolling = false;
+        await _storage.delete(key: 'last_pending_pago_id');
 
         final refType = pago['tipo_referencia'] as String?;
         final refId = pago['referencia_id'] as int?;
@@ -155,6 +192,7 @@ class PagoProvider extends ChangeNotifier {
       } else if (estado == 'FALLIDO') {
         _pollingTimer?.cancel();
         isPolling = false;
+        await _storage.delete(key: 'last_pending_pago_id');
         errorMessage = 'Pago fallido: La transacción fue cancelada o rechazada en la pasarela.';
         notifyListeners();
         onFailed();
@@ -169,6 +207,7 @@ class PagoProvider extends ChangeNotifier {
     required VoidCallback onFailed,
     VoidCallback? onStockRevision,
   }) {
+    print('[PagoProvider] Iniciando polling para id_pago=$idPago');
     _pollingTimer?.cancel();
     isPolling = true;
     errorMessage = null;
@@ -183,6 +222,7 @@ class PagoProvider extends ChangeNotifier {
       if (attempts > maxAttempts) {
         timer.cancel();
         isPolling = false;
+        await _storage.delete(key: 'last_pending_pago_id');
         infoMessage = 'Webhook demorado: El pago se está procesando. Puedes verificar el estado final en tu historial en unos minutos.';
         notifyListeners();
         return;
@@ -192,10 +232,12 @@ class PagoProvider extends ChangeNotifier {
         final pago = await _pagoService.getPagoDetail(idPago);
         pagoData = pago;
         final estado = pago['estado_pago'] as String?;
+        print('[PagoProvider] Estado actual del pago=$estado');
 
         if (estado == 'PAGADO') {
           timer.cancel();
           isPolling = false;
+          await _storage.delete(key: 'last_pending_pago_id');
 
           final refType = pago['tipo_referencia'] as String?;
           final refId = pago['referencia_id'] as int?;
@@ -221,12 +263,14 @@ class PagoProvider extends ChangeNotifier {
         } else if (estado == 'FALLIDO') {
           timer.cancel();
           isPolling = false;
+          await _storage.delete(key: 'last_pending_pago_id');
           errorMessage = 'Pago fallido: La transacción fue cancelada o rechazada en la pasarela.';
           notifyListeners();
           onFailed();
         } else if (estado == 'RECHAZADO') {
           timer.cancel();
           isPolling = false;
+          await _storage.delete(key: 'last_pending_pago_id');
           errorMessage = 'Pago rechazado: Fondos insuficientes o tarjeta denegada.';
           notifyListeners();
           onFailed();

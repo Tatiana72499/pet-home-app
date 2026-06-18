@@ -36,12 +36,19 @@ class CarritoProvider extends ChangeNotifier {
 
     try {
       _carrito = await _carritoService.getCarrito();
+      print('[CarritoProvider] Carrito sincronizado con backend');
     } catch (_) {
       errorMessage = 'No se pudo cargar el carrito.';
     } finally {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  void clearCarritoLocal() {
+    _carrito = CarritoTemporalModel.empty();
+    print('[CarritoProvider] Carrito local limpiado');
+    notifyListeners();
   }
 
   Future<bool> addProducto({
