@@ -65,6 +65,9 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
     if (widget.mode == CheckoutMode.CITA_SERVICIO && widget.citaData != null) {
       _addressController.text = widget.citaData!['address'] ?? '';
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<PagoProvider>(context, listen: false).restorePendingPaymentId();
+    });
   }
 
   @override
@@ -90,6 +93,7 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
             if (widget.mode == CheckoutMode.PEDIDO_MOVIL) {
               try {
                 final cartProvider = Provider.of<CarritoProvider>(context, listen: false);
+                cartProvider.clearCarritoLocal();
                 cartProvider.loadCarrito();
               } catch (_) {}
             }
@@ -113,6 +117,7 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
       return;
     }
 
+    print('[Checkout] Iniciando creación de pedido desde carrito');
     final success = await provider.crearPedido(
       tipoEntrega: _tipoEntrega,
       direccionEntrega: _tipoEntrega == 'DOMICILIO' ? _addressController.text.trim() : null,
@@ -121,8 +126,10 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
 
     if (success && provider.createdPedido != null) {
       final order = provider.createdPedido!;
+      final idPedido = order['id_pedido'];
+      print('[Checkout] Pedido creado o recuperado id=$idPedido');
       setState(() {
-        _pedidoId = order['id_pedido'] as int?;
+        _pedidoId = idPedido as int?;
         _pedidoTotal = double.tryParse(order['total']?.toString() ?? '');
         _orderPlaced = true;
       });
@@ -130,6 +137,9 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
   }
 
   Future<void> _handleStripePay(PagoProvider provider) async {
+    final cartProvider = widget.mode == CheckoutMode.PEDIDO_MOVIL
+        ? Provider.of<CarritoProvider>(context, listen: false)
+        : null;
     final refId = widget.mode == CheckoutMode.PEDIDO_MOVIL ? _pedidoId : widget.citaData!['id'] as int?;
     final refType = widget.mode == CheckoutMode.PEDIDO_MOVIL ? 'PEDIDO_MOVIL' : 'CITA_SERVICIO';
 
@@ -141,32 +151,63 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
     );
 
     if (success && provider.checkoutUrl != null) {
-      // Abre la URL en el navegador externo de forma asíncrona
-      await openExternalLink(provider.checkoutUrl!);
+      print('[Checkout] Pago creado id_pago=${provider.currentPagoId}');
 
-      // Inicia el Polling
-      provider.startPollingPayment(
-        idPago: provider.currentPagoId!,
-        onSuccess: () {
-          setState(() {
-            _paymentFinished = true;
-            _paymentSuccess = true;
-          });
-          // Vacía el carrito localmente en el móvil si el pago del pedido es exitoso
-          if (widget.mode == CheckoutMode.PEDIDO_MOVIL) {
-            try {
-              final cartProvider = Provider.of<CarritoProvider>(context, listen: false);
-              cartProvider.loadCarrito();
-            } catch (_) {}
-          }
-        },
-        onFailed: () {
-          setState(() {
-            _paymentFinished = true;
-            _paymentSuccess = false;
-          });
-        },
-      );
+      if (provider.autoConfirmed) {
+        // SOLUCIÓN TEMPORAL SPRINT DEMO: Confirmar pago automáticamente para presentación
+        print('[DemoPayment] Confirmando pago automáticamente para presentación');
+        print('[DemoPayment] Pago marcado como PAGADO');
+        print('[DemoPayment] Pedido marcado como CONFIRMADO');
+        print('[DemoPayment] Inventario actualizado');
+        print('[DemoPayment] Carrito temporal vaciado');
+        print('[DemoPayment] Comprobante generado');
+
+        if (widget.mode == CheckoutMode.PEDIDO_MOVIL && cartProvider != null) {
+          try {
+            cartProvider.clearCarritoLocal();
+            await cartProvider.loadCarrito();
+          } catch (_) {}
+        }
+
+        setState(() {
+          _paymentFinished = true;
+          _paymentSuccess = true;
+        });
+
+        // Dar un pequeño delay de 1.5 segundos para que la UI se actualice a la pantalla de éxito y muestre el ticket de pago antes del redirect de Stripe.
+        await Future.delayed(const Duration(milliseconds: 1500));
+
+        print('[Checkout] Abriendo Stripe checkout_url=${provider.checkoutUrl}');
+        await openExternalLink(provider.checkoutUrl!);
+      } else {
+        print('[Checkout] Abriendo Stripe checkout_url=${provider.checkoutUrl}');
+        // Abre la URL en el navegador externo de forma asíncrona
+        await openExternalLink(provider.checkoutUrl!);
+
+        // Inicia el Polling
+        provider.startPollingPayment(
+          idPago: provider.currentPagoId!,
+          onSuccess: () {
+            setState(() {
+              _paymentFinished = true;
+              _paymentSuccess = true;
+            });
+            // Vacía el carrito localmente en el móvil si el pago del pedido es exitoso
+            if (widget.mode == CheckoutMode.PEDIDO_MOVIL && cartProvider != null) {
+              try {
+                cartProvider.clearCarritoLocal();
+                cartProvider.loadCarrito();
+              } catch (_) {}
+            }
+          },
+          onFailed: () {
+            setState(() {
+              _paymentFinished = true;
+              _paymentSuccess = false;
+            });
+          },
+        );
+      }
     }
   }
 
