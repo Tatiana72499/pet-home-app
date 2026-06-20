@@ -94,6 +94,7 @@ class PagoService {
     required String tipoEntrega,
     String? direccionEntrega,
     String? observacion,
+    int? citaId,
   }) async {
     final response = await _apiClient.send(
       method: 'POST',
@@ -102,6 +103,7 @@ class PagoService {
         'tipo_entrega': tipoEntrega,
         'direccion_entrega': direccionEntrega,
         'observacion': observacion,
+        'cita_id': citaId,
       },
     );
     final decoded = _apiClient.decode(response);

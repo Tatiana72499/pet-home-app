@@ -237,6 +237,7 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
       direccionEntrega:
           (_tipoEntrega == 'DOMICILIO' || _tipoEntrega == 'JUNTO_CITA') ? effectiveAddress : null,
       observacion: _buildOrderObservation().isEmpty ? null : _buildOrderObservation(),
+      citaId: _tipoEntrega == 'JUNTO_CITA' ? _selectedDeliveryAppointmentId : null,
     );
 
     if (!success || provider.createdPedido == null) return;
