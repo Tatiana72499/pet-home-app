@@ -16,9 +16,13 @@ class CarritoProvider extends ChangeNotifier {
   final CarritoService _carritoService;
   final AppointmentsService _appointmentsService;
   final PetsService _petsService;
+  AppointmentsService get appointmentsService => _appointmentsService;
+  PetsService get petsService => _petsService;
 
   CarritoTemporalModel _carrito = CarritoTemporalModel.empty();
   CarritoTemporalModel get carrito => _carrito;
+  List<Appointment> _pendingAppointments = <Appointment>[];
+  List<Appointment> get pendingAppointments => _pendingAppointments;
 
   bool isLoading = false;
   bool isAddingProducto = false;
@@ -26,11 +30,13 @@ class CarritoProvider extends ChangeNotifier {
   bool isUpdatingCantidad = false;
   bool isRemovingItem = false;
   bool isClearing = false;
+  bool isLoadingAppointments = false;
 
   String? errorMessage;
 
   Future<void> loadCarrito() async {
     isLoading = true;
+    isLoadingAppointments = true;
     errorMessage = null;
     notifyListeners();
 
@@ -39,8 +45,18 @@ class CarritoProvider extends ChangeNotifier {
       print('[CarritoProvider] Carrito sincronizado con backend');
     } catch (_) {
       errorMessage = 'No se pudo cargar el carrito.';
+    }
+
+    try {
+      final appointments = await _appointmentsService.getAppointments();
+      _pendingAppointments = appointments
+          .where((appointment) => appointment.status == 'PENDIENTE')
+          .toList();
+    } catch (_) {
+      _pendingAppointments = <Appointment>[];
     } finally {
       isLoading = false;
+      isLoadingAppointments = false;
       notifyListeners();
     }
   }

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:pethome_app/src/core/features/compras/presentation/widgets/agregar_servicio_sheet.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/widgets/carrito_item_card.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/widgets/carrito_total_card.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/widgets/empty_cart_widget.dart';
 import 'package:pethome_app/src/core/features/compras/providers/carrito_provider.dart';
 import 'package:pethome_app/src/core/widgets/notification_bell.dart';
 import 'package:pethome_app/src/core/features/compras/presentation/pages/checkout_page.dart';
+import 'package:pethome_app/src/features/appointments/presentation/pages/citas_page.dart';
+import 'package:pethome_app/src/features/auth/data/auth_service.dart';
 
 class CarritoTemporalPage extends StatelessWidget {
   const CarritoTemporalPage({super.key});
@@ -63,10 +64,14 @@ class _CarritoTemporalView extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.all(14),
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Wrap(
+                        runSpacing: 12,
+                        spacing: 12,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          const Expanded(
+                          const SizedBox(
+                            width: 230,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -80,7 +85,7 @@ class _CarritoTemporalView extends StatelessWidget {
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  'Productos y servicios agregados temporalmente',
+                                  'Productos, servicios y citas pendientes de pago',
                                   style: TextStyle(color: Color(0xFF6B7280)),
                                 ),
                               ],
@@ -109,7 +114,10 @@ class _CarritoTemporalView extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      Row(
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -127,11 +135,150 @@ class _CarritoTemporalView extends StatelessWidget {
                           ),
                           const SizedBox(width: 10),
                           const Text(
-                            'No genera venta ni pago',
+                            'El carrito guarda productos y servicios. Las citas pendientes tambien se pueden pagar aqui.',
                             style: TextStyle(color: Color(0xFF4B5563)),
                           ),
                         ],
                       ),
+                      if (provider.isLoadingAppointments)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 16),
+                          child: LinearProgressIndicator(color: Color(0xFF6D28D9)),
+                        )
+                      else if (provider.pendingAppointments.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Citas pendientes de pago',
+                          style: TextStyle(
+                            color: Color(0xFF1F2937),
+                            fontSize: 25 / 2,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...provider.pendingAppointments.map(
+                          (appointment) => Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE9D5FF)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFF0E7FF),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.event_available_rounded,
+                                        color: Color(0xFF6D28D9),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            appointment.serviceName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF111827),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${appointment.petName} · ${appointment.date} · ${appointment.time}',
+                                            style: const TextStyle(
+                                              color: Color(0xFF6B7280),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            appointment.modality,
+                                            style: const TextStyle(
+                                              color: Color(0xFF6D28D9),
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          if ((appointment.address ?? '').isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              appointment.address!,
+                                              style: const TextStyle(
+                                                color: Color(0xFF4B5563),
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  alignment: WrapAlignment.spaceBetween,
+                                  runSpacing: 10,
+                                  spacing: 10,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Bs. ${double.tryParse(appointment.price)?.toStringAsFixed(2) ?? appointment.price}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF6D28D9),
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    FilledButton.icon(
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => CheckoutPage(
+                                              mode: CheckoutMode.CITA_SERVICIO,
+                                              citaData: {
+                                                'id': appointment.id,
+                                                'petId': appointment.petId,
+                                                'serviceId': appointment.serviceId,
+                                                'priceId': appointment.priceId,
+                                                'serviceName': appointment.serviceName,
+                                                'petName': appointment.petName,
+                                                'date': appointment.date,
+                                                'time': appointment.time,
+                                                'modality': appointment.modality,
+                                                'address': appointment.address,
+                                                'description': appointment.description,
+                                                'price': appointment.price,
+                                              },
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.payment_rounded),
+                                      label: const Text('Pagar cita'),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: const Color(0xFF6D28D9),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       Row(
                         children: [
@@ -145,11 +292,9 @@ class _CarritoTemporalView extends StatelessWidget {
                           ),
                           const Spacer(),
                           TextButton.icon(
-                            onPressed: provider.isAddingServicio
-                                ? null
-                                : () => _openAgregarServicioSheet(context, provider),
-                            icon: const Icon(Icons.medical_services_outlined),
-                            label: const Text('Agregar servicio'),
+                            onPressed: () => _openSolicitarCita(context, provider),
+                            icon: const Icon(Icons.add_box_outlined),
+                            label: const Text('Agregar cita'),
                           ),
                         ],
                       ),
@@ -283,24 +428,34 @@ class _CarritoTemporalView extends StatelessWidget {
     );
   }
 
-  Future<void> _openAgregarServicioSheet(
+  Future<void> _openSolicitarCita(
     BuildContext context,
     CarritoProvider provider,
   ) async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => AgregarServicioSheet(provider: provider),
-    );
+    final authService = AuthService();
 
-    if (!context.mounted || result == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result)),
-    );
+    try {
+      final session = await authService.getSession();
+      if (!context.mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CitasPage(
+            petsService: provider.petsService,
+            appointmentsService: provider.appointmentsService,
+            permissions: session.permissions,
+          ),
+        ),
+      );
+
+      if (!context.mounted) return;
+      await provider.loadCarrito();
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir la pantalla de citas.')),
+      );
+    }
   }
 
   Future<void> _onChangeQuantity(

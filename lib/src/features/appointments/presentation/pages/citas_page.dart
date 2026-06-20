@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:pethome_app/src/core/features/compras/providers/carrito_provider.dart';
 import 'package:pethome_app/src/core/network/api_client.dart';
 import 'package:pethome_app/src/core/widgets/location_coordinate_picker.dart';
 import 'package:pethome_app/src/features/appointments/data/appointments_service.dart';
@@ -572,6 +574,31 @@ class _CitasPageState extends State<CitasPage> {
     }
   }
 
+  void _openAppointmentCheckout(Appointment appointment) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CheckoutPage(
+          mode: CheckoutMode.CITA_SERVICIO,
+          citaData: {
+            'id': appointment.id,
+            'petId': appointment.petId,
+            'serviceId': appointment.serviceId,
+            'priceId': appointment.priceId,
+            'serviceName': appointment.serviceName,
+            'petName': appointment.petName,
+            'date': appointment.date,
+            'time': appointment.time,
+            'modality': appointment.modality,
+            'address': appointment.address,
+            'description': appointment.description,
+            'price': appointment.price,
+          },
+        ),
+      ),
+    );
+  }
+
   void _showDetail(Appointment appointment) {
     showModalBottomSheet<void>(
       context: context,
@@ -610,34 +637,33 @@ class _CitasPageState extends State<CitasPage> {
                         break;
                       }
                     }
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context); // Cerrar modal de detalles
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => CheckoutPage(
-                                  mode: CheckoutMode.CITA_SERVICIO,
-                                  citaData: {
-                                    'id': appointment.id,
-                                    'serviceName': appointment.serviceName,
-                                    'petName': appointment.petName,
-                                    'date': appointment.date,
-                                    'time': appointment.time,
-                                    'modality': appointment.modality,
-                                    'address': appointment.address,
-                                    'price': matchingPrice?.price ?? '0.00',
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.payment_rounded),
-                          label: const Text('Proceder al Pago'),
+	                    return Padding(
+	                      padding: const EdgeInsets.only(bottom: 12),
+	                      child: SizedBox(
+	                        width: double.infinity,
+	                        child: FilledButton.icon(
+	                          onPressed: () {
+	                            Navigator.pop(context);
+	                            _openAppointmentCheckout(
+	                              Appointment(
+	                                id: appointment.id,
+	                                petId: appointment.petId,
+	                                serviceId: appointment.serviceId,
+	                                priceId: appointment.priceId,
+	                                petName: appointment.petName,
+	                                serviceName: appointment.serviceName,
+	                                date: appointment.date,
+	                                time: appointment.time,
+	                                modality: appointment.modality,
+	                                status: appointment.status,
+	                                price: matchingPrice?.price ?? appointment.price,
+	                                address: appointment.address,
+	                                description: appointment.description,
+	                              ),
+	                            );
+	                          },
+	                          icon: const Icon(Icons.payment_rounded),
+	                          label: const Text('Pagar cita'),
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF6D28D9),
                             shape: RoundedRectangleBorder(
@@ -1300,11 +1326,25 @@ class _CitasPageState extends State<CitasPage> {
               ),
             ),
             const SizedBox(height: 12),
+            if (appointment != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _openAppointmentCheckout(appointment),
+                  icon: const Icon(Icons.payment_rounded),
+                  label: const Text('Ir a pagar esta cita'),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => setState(_resetWizard),
-                child: const Text('Ver mis citas'),
+              child: OutlinedButton(
+                onPressed: () {
+                  setState(_resetWizard);
+                  Provider.of<CarritoProvider>(context, listen: false).loadCarrito();
+                },
+                child: const Text('Seguir viendo mis citas'),
               ),
             ),
           ],
