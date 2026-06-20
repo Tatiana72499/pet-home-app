@@ -8,7 +8,9 @@ import 'package:pethome_app/src/features/chatbot/presentation/widgets/chat_fab.d
 import 'package:pethome_app/src/core/features/compras/presentation/pages/carrito_temporal_page.dart';
 import 'package:pethome_app/src/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/data/catalogo_service.dart';
+import 'package:pethome_app/src/features/pets/data/adopciones_service.dart';
 import 'package:pethome_app/src/features/pets/data/pets_service.dart';
+import 'package:pethome_app/src/features/pets/presentation/pages/adopciones_page.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/mascotas_page.dart';
 import 'package:pethome_app/src/features/profile/data/profile_service.dart';
 import 'package:pethome_app/src/features/profile/presentation/pages/perfil_page.dart';
@@ -35,6 +37,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final Future<AuthSession> _sessionFuture = _loadSession();
   late final PetsService _petsService = PetsService(
+    authService: widget.authService,
+  );
+  late final AdopcionesService _adopcionesService = AdopcionesService(
     authService: widget.authService,
   );
   late final AppointmentsService _appointmentsService = AppointmentsService(
@@ -172,6 +177,12 @@ class _HomePageState extends State<HomePage> {
               icon: Icons.bar_chart_rounded,
               label: 'Reportes',
             ),
+            _NavEntry(
+              code: 'ADOPCIONES',
+              page: AdopcionesPage(service: _adopcionesService),
+              icon: Icons.volunteer_activism_outlined,
+              label: 'Adopciones',
+            ),
           ];
         } else {
           // ────── VISTA CLIENTE: solo módulos de cliente ──────
@@ -196,6 +207,12 @@ class _HomePageState extends State<HomePage> {
               ),
               icon: Icons.pets,
               label: 'Mascotas',
+            ),
+            _NavEntry(
+              code: 'ADOPCIONES',
+              page: AdopcionesPage(service: _adopcionesService),
+              icon: Icons.volunteer_activism_outlined,
+              label: 'Adopciones',
             ),
             _NavEntry(
               code: 'CITAS',

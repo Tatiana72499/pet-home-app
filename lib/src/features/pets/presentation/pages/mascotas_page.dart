@@ -50,6 +50,7 @@ class _MascotasPageState extends State<MascotasPage> {
   int? _filterSpeciesId;
   int? _editingPetId;
   String? _selectedPhotoPath;
+  bool _petEstado = true;
   bool _showForm = false;
   bool _isSaving = false;
   bool _catalogsReady = false;
@@ -205,7 +206,7 @@ class _MascotasPageState extends State<MascotasPage> {
       allergies: _emptyToNull(_allergiesController.text),
       notes: _emptyToNull(_notesController.text),
       photo: _emptyToNull(_photoController.text),
-      estado: null,
+      estado: _petEstado,
     );
 
     try {
@@ -284,6 +285,7 @@ class _MascotasPageState extends State<MascotasPage> {
       _notesController.text = pet.notes ?? '';
       _photoController.text = pet.photo ?? '';
       _selectedPhotoPath = null;
+      _petEstado = pet.estado ?? true;
       _message = null;
     });
 
@@ -302,6 +304,7 @@ class _MascotasPageState extends State<MascotasPage> {
     _notesController.clear();
     _photoController.clear();
     _selectedPhotoPath = null;
+    _petEstado = true;
     _selectedSpeciesId = null;
     _selectedBreedId = null;
     _selectedSex = null;
@@ -762,6 +765,48 @@ class _MascotasPageState extends State<MascotasPage> {
               Text(
                 _isEditing ? 'Editar mascota' : 'Agregar mascota',
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.black12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Mascota activa',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          Text(
+                            _petEstado
+                                ? 'Visible y disponible para citas'
+                                : 'Inactiva',
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _petEstado,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(() => _petEstado = value),
+                      activeTrackColor:
+                          const Color(0xFF6A11CB).withValues(alpha: 0.5),
+                      activeThumbColor: const Color(0xFF6A11CB),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               TextFormField(
