@@ -47,6 +47,19 @@ class AppointmentsService {
     );
   }
 
+  Future<Appointment> replaceAppointment(int id, AppointmentRequest request) async {
+    final response = await _apiClient.send(
+      method: 'PUT',
+      path: '/api/gestion/servicios/citas/$id/',
+      body: request.toJson(),
+    );
+    final decoded = _apiClient.decode(response);
+    if (decoded is Map<String, dynamic>) {
+      return Appointment.fromJson(decoded);
+    }
+    throw Exception('No se pudo actualizar la cita.');
+  }
+
   Future<void> cancelAppointment(int id) async {
     await _apiClient.send(
       method: 'DELETE',
@@ -138,6 +151,7 @@ class Appointment {
     required this.time,
     required this.modality,
     required this.status,
+    required this.price,
     this.address,
     this.description,
   });
@@ -152,6 +166,7 @@ class Appointment {
   final String time;
   final String modality;
   final String status;
+  final String price;
   final String? address;
   final String? description;
 
@@ -167,6 +182,7 @@ class Appointment {
       time: _shortTime(json['hora_inicio'] as String?),
       modality: json['modalidad'] as String? ?? 'CLINICA',
       status: json['estado'] as String? ?? 'PENDIENTE',
+      price: json['precio']?.toString() ?? '0.00',
       address: json['direccion_cita'] as String?,
       description: json['descripcion'] as String?,
     );

@@ -5,6 +5,7 @@ import 'package:pethome_app/src/features/auth/data/auth_service.dart';
 import 'package:pethome_app/src/features/auth/domain/auth_user.dart';
 import 'package:pethome_app/src/features/auth/presentation/pages/login_page.dart';
 import 'package:pethome_app/src/features/chatbot/presentation/widgets/chat_fab.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/pages/carrito_temporal_page.dart';
 import 'package:pethome_app/src/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:pethome_app/src/features/gestion_inventario_productos/catalogo/data/catalogo_service.dart';
 import 'package:pethome_app/src/features/pets/data/adopciones_service.dart';
@@ -290,7 +291,22 @@ class _HomePageState extends State<HomePage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            actions: const [NotificationBell(), SizedBox(width: 8)],
+            actions: [
+              IconButton(
+                tooltip: 'Mi carrito',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CarritoTemporalPage()),
+                  );
+                },
+                icon: const Icon(
+                  Icons.shopping_cart_outlined,
+                  color: Color(0xFF6A11CB),
+                ),
+              ),
+              const NotificationBell(),
+              const SizedBox(width: 8),
+            ],
           ),
           drawer: isAdmin
               ? Drawer(
