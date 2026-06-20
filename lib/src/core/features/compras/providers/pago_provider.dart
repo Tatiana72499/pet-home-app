@@ -52,6 +52,7 @@ class PagoProvider extends ChangeNotifier {
     required String tipoEntrega,
     String? direccionEntrega,
     String? observacion,
+    int? citaId,
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -63,6 +64,7 @@ class PagoProvider extends ChangeNotifier {
         tipoEntrega: tipoEntrega,
         direccionEntrega: direccionEntrega,
         observacion: observacion,
+        citaId: citaId,
       );
       createdPedido = res;
       notifyListeners();
