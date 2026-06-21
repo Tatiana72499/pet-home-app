@@ -217,7 +217,7 @@ class PagoProvider extends ChangeNotifier {
     notifyListeners();
 
     int attempts = 0;
-    const maxAttempts = 30; // 60 segundos total (cada 2 seg)
+    const maxAttempts = 120; // 4 minutos total (cada 2 seg)
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
       attempts++;

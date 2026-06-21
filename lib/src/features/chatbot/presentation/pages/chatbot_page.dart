@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:pethome_app/src/core/features/compras/presentation/pages/checkout_page.dart';
 
 import '../../../../core/widgets/location_coordinate_picker.dart';
 import '../controllers/chatbot_controller.dart';
@@ -101,6 +102,17 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _controller.clear();
     try {
       await chatbot.sendMessage(text);
+      final pedido = chatbot.consumePendingCheckoutPedido();
+      if (pedido != null && mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => CheckoutPage(
+              mode: CheckoutMode.PEDIDO_MOVIL,
+              pedidoData: pedido,
+            ),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isSendingMessage = false);

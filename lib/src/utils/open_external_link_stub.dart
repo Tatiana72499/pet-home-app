@@ -4,8 +4,11 @@ Future<bool> openExternalLink(String url) async {
   final uri = Uri.tryParse(url);
   if (uri == null) return false;
 
-  final openedByDefault = await launchUrl(uri, mode: LaunchMode.platformDefault);
-  if (openedByDefault) return true;
+  final openedExternally = await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+  );
+  if (openedExternally) return true;
 
-  return launchUrl(uri, mode: LaunchMode.externalApplication);
+  return launchUrl(uri, mode: LaunchMode.platformDefault);
 }

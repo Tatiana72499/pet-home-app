@@ -5,6 +5,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../data/chatbot_service.dart';
 import '../../domain/chat_message.dart';
+import '../../domain/chatbot_response.dart';
 
 class ChatbotController extends ChangeNotifier {
   ChatbotController({ChatbotService? service}) : _service = service ?? ChatbotService();
@@ -15,8 +16,9 @@ class ChatbotController extends ChangeNotifier {
   final List<ChatMessage> messages = <ChatMessage>[
     ChatMessage(
       text:
-          'Hola, soy PetBot. Puedo ayudarte a agendar, reprogramar y cancelar citas. '
-          'Tambien puedes escribirme o compartir tu ubicacion para citas a domicilio.',
+          'Hola, soy PetBot. Puedo ayudarte con citas y tambien con compras de productos. '
+          'Puedes agendar, reprogramar o cancelar citas, buscar productos, ver tu carrito y finalizar pedidos. '
+          'Tambien puedes escribirme o compartir tu ubicacion cuando necesites entrega o citas a domicilio.',
       isBot: true,
     ),
   ];
@@ -35,20 +37,21 @@ class ChatbotController extends ChangeNotifier {
   bool _isFinishingVoiceInput = false;
   bool _ttsConfigured = false;
   bool _isDisposed = false;
+  Map<String, dynamic>? _pendingCheckoutPedido;
 
-  Future<void> sendMessage(String text) async {
+  Future<ChatbotResponse?> sendMessage(String text) async {
     final message = text.trim();
-    if (message.isEmpty || isLoading) return;
+    if (message.isEmpty || isLoading) return null;
 
-    await _sendOutgoingMessage(message);
+    return _sendOutgoingMessage(message);
   }
 
-  Future<void> sharePickedLocation(String coordinates) async {
+  Future<ChatbotResponse?> sharePickedLocation(String coordinates) async {
     final address = coordinates.trim();
-    if (address.isEmpty || isLoading) return;
+    if (address.isEmpty || isLoading) return null;
 
     _sharedAddress = address;
-    await _sendOutgoingMessage(address, isLocation: true);
+    return _sendOutgoingMessage(address, isLocation: true);
   }
 
   Future<void> toggleVoiceMessage() async {
@@ -134,7 +137,7 @@ class ChatbotController extends ChangeNotifier {
     _isFinishingVoiceInput = false;
   }
 
-  Future<void> _sendOutgoingMessage(
+  Future<ChatbotResponse?> _sendOutgoingMessage(
     String message, {
     bool isLocation = false,
   }) async {
@@ -143,7 +146,7 @@ class ChatbotController extends ChangeNotifier {
         _lastOutgoingWasLocation == isLocation &&
         _lastOutgoingAt != null &&
         now.difference(_lastOutgoingAt!) < const Duration(milliseconds: 1200)) {
-      return;
+      return null;
     }
 
     _lastOutgoingMessage = message;
@@ -167,10 +170,12 @@ class ChatbotController extends ChangeNotifier {
       );
 
       _chatContext = response.context;
+      _storePendingNavigation(response);
       final botMessage = response.message.isEmpty
           ? 'No recibi una respuesta valida del bot.'
           : response.message;
       messages.add(ChatMessage(text: botMessage, isBot: true));
+      return response;
     } catch (error) {
       errorMessage = error.toString();
       messages.add(
@@ -179,10 +184,26 @@ class ChatbotController extends ChangeNotifier {
           isBot: true,
         ),
       );
+      return null;
     } finally {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  void _storePendingNavigation(ChatbotResponse response) {
+    final action = (response.action ?? '').trim().toUpperCase();
+    if (action == 'PEDIDO_CREADO_TIENDA') {
+      _pendingCheckoutPedido = Map<String, dynamic>.from(response.data);
+      return;
+    }
+    _pendingCheckoutPedido = null;
+  }
+
+  Map<String, dynamic>? consumePendingCheckoutPedido() {
+    final pedido = _pendingCheckoutPedido;
+    _pendingCheckoutPedido = null;
+    return pedido;
   }
 
   Map<String, dynamic> _buildContext() {
