@@ -834,6 +834,13 @@ class _PedidoCard extends StatelessWidget {
                       '${_toLabel(item.tipoEntrega)} · Bs ${item.total}',
                       style: const TextStyle(color: Colors.black54),
                     ),
+                    if ((item.estadoPago ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Pago: ${_toLabel(item.estadoPago!)}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     _StatusChip(status: item.estadoPedido),
                   ],

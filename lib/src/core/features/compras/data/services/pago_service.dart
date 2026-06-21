@@ -1,4 +1,5 @@
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import 'package:pethome_app/src/core/network/api_client.dart';
 import 'package:pethome_app/src/features/auth/data/auth_service.dart';
 
@@ -28,7 +29,7 @@ class PagoService {
         'tipo_referencia': tipoReferencia,
         'referencia_id': referenciaId,
         'metodo_pago': 'STRIPE',
-        'origen': 'MOBILE',
+        'origen': kIsWeb ? 'WEB' : 'MOBILE',
       },
     );
     final decoded = _apiClient.decode(response);

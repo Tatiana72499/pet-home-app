@@ -207,6 +207,13 @@ class _TrackingDetailPageState extends State<TrackingDetailPage> {
                       'Total: Bs ${detail.total}',
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
                     ),
+                    if ((detail.estadoPago ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Pago: ${_toLabel(detail.estadoPago!)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
                     const SizedBox(height: 2),
                     Text(
                       'Pedido realizado: ${_formatDateTime(detail.fechaPedido)}',

@@ -150,6 +150,7 @@ class PedidoListItem {
     required this.subtotal,
     required this.costoEnvio,
     required this.total,
+    this.estadoPago,
     required this.estado,
     this.usuarioNombre,
     this.observacion,
@@ -166,6 +167,7 @@ class PedidoListItem {
   final String subtotal;
   final String costoEnvio;
   final String total;
+  final String? estadoPago;
   final String? observacion;
   final String? motivoCancelacion;
   final bool estado;
@@ -182,6 +184,7 @@ class PedidoListItem {
       subtotal: _asString(json['subtotal'], fallback: '0.00'),
       costoEnvio: _asString(json['costo_envio'], fallback: '0.00'),
       total: _asString(json['total'], fallback: '0.00'),
+      estadoPago: _asNullableString(json['estado_pago']),
       observacion: _asNullableString(json['observacion']),
       motivoCancelacion: _asNullableString(json['motivo_cancelacion']),
       estado: _asBool(json['estado'], fallback: true),
@@ -200,6 +203,7 @@ class PedidoDetail {
     required this.subtotal,
     required this.costoEnvio,
     required this.total,
+    this.estadoPago,
     required this.estado,
     required this.fechaCreacion,
     required this.fechaActualizacion,
@@ -221,6 +225,7 @@ class PedidoDetail {
   final String subtotal;
   final String costoEnvio;
   final String total;
+  final String? estadoPago;
   final String? observacion;
   final String? motivoCancelacion;
   final bool estado;
@@ -242,6 +247,7 @@ class PedidoDetail {
       subtotal: _asString(json['subtotal'], fallback: '0.00'),
       costoEnvio: _asString(json['costo_envio'], fallback: '0.00'),
       total: _asString(json['total'], fallback: '0.00'),
+      estadoPago: _asNullableString(json['estado_pago']),
       observacion: _asNullableString(json['observacion']),
       motivoCancelacion: _asNullableString(json['motivo_cancelacion']),
       estado: _asBool(json['estado'], fallback: true),

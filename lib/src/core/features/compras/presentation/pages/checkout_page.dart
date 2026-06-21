@@ -18,10 +18,12 @@ class CheckoutPage extends StatelessWidget {
     super.key,
     required this.mode,
     this.citaData,
+    this.pedidoData,
   });
 
   final CheckoutMode mode;
   final Map<String, dynamic>? citaData;
+  final Map<String, dynamic>? pedidoData;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +35,7 @@ class CheckoutPage extends StatelessWidget {
       child: _CheckoutView(
         mode: mode,
         citaData: citaData,
+        pedidoData: pedidoData,
         appointmentsService: AppointmentsService(authService: authService),
       ),
     );
@@ -44,10 +47,12 @@ class _CheckoutView extends StatefulWidget {
     required this.mode,
     required this.appointmentsService,
     this.citaData,
+    this.pedidoData,
   });
 
   final CheckoutMode mode;
   final Map<String, dynamic>? citaData;
+  final Map<String, dynamic>? pedidoData;
   final AppointmentsService appointmentsService;
 
   @override
@@ -72,6 +77,10 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
   bool get _isCitaDomicilio =>
       _isCitaMode &&
       (widget.citaData?['modality']?.toString().toUpperCase() == 'DOMICILIO');
+  bool get _hasExistingPedido =>
+      _isPedidoMode &&
+      widget.pedidoData != null &&
+      widget.pedidoData!['id_pedido'] != null;
   bool get _requiresAddress =>
       (_isPedidoMode &&
               (_tipoEntrega == 'DOMICILIO' || _tipoEntrega == 'JUNTO_CITA')) ||
@@ -99,6 +108,14 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
     WidgetsBinding.instance.addObserver(this);
     if (_isCitaMode && widget.citaData != null) {
       _addressController.text = (widget.citaData!['address'] ?? '').toString();
+    }
+    if (_hasExistingPedido) {
+      _pedidoId = widget.pedidoData!['id_pedido'] as int?;
+      _pedidoTotal = double.tryParse(widget.pedidoData!['total']?.toString() ?? '');
+      _tipoEntrega = widget.pedidoData!['tipo_entrega']?.toString() ?? 'DOMICILIO';
+      _addressController.text =
+          (widget.pedidoData!['direccion_entrega'] ?? '').toString();
+      _orderPlaced = true;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_isPedidoMode) {
@@ -332,7 +349,9 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          _isPedidoMode ? 'Confirmar pedido' : 'Pago de cita',
+          _isPedidoMode
+              ? (_orderPlaced ? 'Pago del pedido' : 'Confirmar pedido')
+              : 'Pago de cita',
           style: const TextStyle(color: Color(0xFF1F2937), fontWeight: FontWeight.bold),
         ),
       ),
@@ -592,16 +611,34 @@ class _CheckoutViewState extends State<_CheckoutView> with WidgetsBindingObserve
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 12),
-            if (_isPedidoMode)
-              Consumer<CarritoProvider>(
-                builder: (context, cartProvider, _) {
-                  if (cartProvider.carrito.detalles.isEmpty) {
-                    return const Text('No hay items en el carrito.');
-                  }
+              if (_isPedidoMode)
+                Consumer<CarritoProvider>(
+                  builder: (context, cartProvider, _) {
+                    if (cartProvider.carrito.detalles.isEmpty && !_hasExistingPedido) {
+                      return const Text('No hay items en el carrito.');
+                    }
 
-                  return Column(
-                    children: cartProvider.carrito.detalles
-                        .map(
+                    if (cartProvider.carrito.detalles.isEmpty && _hasExistingPedido) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSummaryRow(
+                            'Pedido',
+                            '#${widget.pedidoData?['id_pedido']?.toString() ?? '-'}',
+                          ),
+                          _buildSummaryRow(
+                            'Entrega',
+                            widget.pedidoData?['tipo_entrega']?.toString(),
+                          ),
+                          if (_addressController.text.trim().isNotEmpty)
+                            _buildSummaryRow('Direccion', _addressController.text.trim()),
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      children: cartProvider.carrito.detalles
+                          .map(
                           (item) => Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Row(
