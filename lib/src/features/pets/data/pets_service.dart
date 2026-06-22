@@ -152,6 +152,34 @@ class PetsService {
     return ClinicalHistory.fromJson(decoded);
   }
 
+  Future<List<PreventivePlanItem>> getPreventivePlan(int petId) async {
+    final response = await _catalogGet('/api/gestion/clinica/mascotas/$petId/plan-sanitario/');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (_looksLikeHtml(response)) {
+        throw ClientException(
+          'Catalogo no disponible temporalmente. Intenta nuevamente en unos minutos.',
+          statusCode: response.statusCode,
+        );
+      }
+      throw ClientException(
+        _extractErrorMessage(_safeDecode(response.body)),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final decoded = _safeDecode(response.body);
+    final rawList = decoded is List
+        ? decoded
+        : (decoded is Map<String, dynamic> && decoded['results'] is List)
+            ? decoded['results'] as List
+            : <dynamic>[];
+
+    return rawList
+        .whereType<Map<String, dynamic>>()
+        .map(PreventivePlanItem.fromJson)
+        .toList();
+  }
+
   Future<void> createPet(CreatePetRequest request) async {
     if (kDebugMode) {
       debugPrint('pet_create_payload=${request.toJson()}');
@@ -534,6 +562,41 @@ class PetHistoryItem {
   }
 }
 
+class PreventivePlanItem {
+  const PreventivePlanItem({
+    required this.id,
+    required this.type,
+    required this.typeDisplay,
+    required this.description,
+    required this.scheduledDate,
+    required this.status,
+    required this.statusDisplay,
+    this.observations,
+  });
+
+  final int id;
+  final String type;
+  final String typeDisplay;
+  final String description;
+  final DateTime? scheduledDate;
+  final String status;
+  final String statusDisplay;
+  final String? observations;
+
+  factory PreventivePlanItem.fromJson(Map<String, dynamic> json) {
+    return PreventivePlanItem(
+      id: _asInt(json['id_plan_sanitario']),
+      type: (json['tipo_evento'] ?? '').toString(),
+      typeDisplay: (json['tipo_evento_display'] ?? json['tipo_evento'] ?? 'Evento').toString(),
+      description: (json['descripcion'] ?? 'Plan sanitario').toString(),
+      scheduledDate: _asDateTime(json['fecha_programada']),
+      status: (json['estado_plan'] ?? '').toString(),
+      statusDisplay: (json['estado_plan_display'] ?? json['estado_plan'] ?? 'Pendiente').toString(),
+      observations: json['observaciones']?.toString(),
+    );
+  }
+}
+
 int _asInt(dynamic value) {
   if (value is int) return value;
   if (value is num) return value.toInt();
@@ -549,4 +612,12 @@ num? _asNum(dynamic value) {
     return num.tryParse(normalized);
   }
   return null;
+}
+
+DateTime? _asDateTime(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  final text = value.toString().trim();
+  if (text.isEmpty) return null;
+  return DateTime.tryParse(text);
 }

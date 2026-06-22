@@ -4,6 +4,7 @@ import 'package:pethome_app/src/features/pets/data/pets_service.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/clinical_history_page.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/pet_addresses_page.dart';
 import 'package:pethome_app/src/features/pets/presentation/pages/pet_history_page.dart';
+import 'package:pethome_app/src/features/pets/presentation/pages/pet_preventive_plan_page.dart';
 
 class PetProfilePage extends StatefulWidget {
   const PetProfilePage({
@@ -139,6 +140,23 @@ class _PetProfilePageState extends State<PetProfilePage> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ClinicalHistoryPage(
+                        petId: pet.id,
+                        petName: pet.name,
+                        petsService: widget.petsService,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              _AccessCard(
+                title: 'Ver plan sanitario',
+                countLabel: 'Controles y cuidados programados',
+                color: const Color(0xFF7C3AED),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PetPreventivePlanPage(
                         petId: pet.id,
                         petName: pet.name,
                         petsService: widget.petsService,
